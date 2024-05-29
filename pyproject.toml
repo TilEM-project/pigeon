@@ -1,0 +1,17 @@
+[project]
+name = "pigeon"
+version = "0.1.0"
+authors = [
+  { name="Cameron Devine", email="cameron.devine@alleninstitute.org" },
+]
+description = "A STOMP client with message definitions via Pydantic"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies=[
+  "pydantic",
+  "stomp-py",
+  "pyyaml",
+]
+
+[project.scripts]
+pigeon = "pigeon.__main__:main"
