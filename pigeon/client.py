@@ -36,7 +36,7 @@ class Pigeon:
         return logger
 
     def _load_topics(self):
-        for entrypoint in entry_points(group="emarfarap.msgs"):
+        for entrypoint in entry_points(group="pigeon.msgs"):
             self.register_topics(*entrypoint.load())
 
     def register_topics(self, topics: Dict[str, Callable], version: str):
