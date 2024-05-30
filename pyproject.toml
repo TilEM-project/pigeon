@@ -1,5 +1,5 @@
 [project]
-name = "pigeon"
+name = "pigeon-client"
 version = "0.1.0"
 authors = [
   { name="Cameron Devine", email="cameron.devine@alleninstitute.org" },
@@ -12,6 +12,20 @@ dependencies=[
   "stomp-py",
   "pyyaml",
 ]
+license = {text = "BSD 3 Clause"}
+classifiers = [
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: BSD License",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
 
 [project.scripts]
 pigeon = "pigeon.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/AllenInstitute/pigeon"
+Documentation = "http://pigeon.readthedocs.io/"
+Repository = "https://github.com/AllenInstitute/pigeon"
+Issues = "https://github.com/AllenInstitute/pigeon/issues"
