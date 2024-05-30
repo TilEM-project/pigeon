@@ -27,3 +27,7 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 html_theme = 'alabaster'
 html_static_path = ['_static']
+
+# Add the root of the repo to the path so that the module doesn't have to be installed for the docs to build.
+import sys
+sys.path.insert(0, "..")
