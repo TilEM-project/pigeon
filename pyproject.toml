@@ -7,11 +7,6 @@ authors = [
 description = "A STOMP client with message definitions via Pydantic"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies=[
-  "pydantic",
-  "stomp-py",
-  "pyyaml",
-]
 license = {text = "BSD 3 Clause"}
 classifiers = [
   "Intended Audience :: Developers",
@@ -20,6 +15,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
 ]
+dynamic = ["dependencies"]
 
 [project.scripts]
 pigeon = "pigeon.__main__:main"
@@ -29,3 +25,6 @@ Homepage = "https://github.com/AllenInstitute/pigeon"
 Documentation = "http://pigeon.readthedocs.io/"
 Repository = "https://github.com/AllenInstitute/pigeon"
 Issues = "https://github.com/AllenInstitute/pigeon/issues"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
