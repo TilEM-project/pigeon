@@ -11,6 +11,20 @@ from . import exceptions
 
 
 class Pigeon:
+    """A STOMP client with message definitions via Pydantic
+    
+    This class is a STOMP message client which will automatically serialize and
+    deserialize message data using Pydantic models. Before sending or receiving
+    messages, topics must be "registered", or in other words, have a Pydantic
+    model associated with each STOMP topic that will be used. This can be done
+    in two ways. One is to use the register_topic(), or register_topics()
+    methods. The other is to have message definitions in a Python package
+    with an entry point defined in the pigeon.msgs group. This entry point
+    should provide a tuple containing a mapping of topics to Pydantic models,
+    and the message version. Topics defined in this manner will be
+    automatically discovered and loaded at runtime, unless this mechanism is
+    manually disabled.
+    """
     def __init__(
         self,
         service: str,
@@ -19,6 +33,16 @@ class Pigeon:
         logger: logging.Logger = None,
         load_topics: bool = True,
     ):
+        """
+        Args:
+            service: The name of the service. This will be included in the
+                message headers.
+            host: The location of the STOMP message broker.
+            port: The port to use when connecting to the STOMP message broker.
+            logger: A Python logger to use. If not provided, a logger will be
+                crated.
+            load_topics: If true, load topics from Python entry points.
+        """
         self._service = service
         self._connection = stomp.Connection12([(host, port)],  heartbeats=(10000, 10000))
         self._topics = {}
@@ -39,13 +63,26 @@ class Pigeon:
         for entrypoint in entry_points(group="pigeon.msgs"):
             self.register_topics(*entrypoint.load())
 
-    def register_topics(self, topics: Dict[str, Callable], version: str):
-        self._topics.update(topics)
-        self._msg_versions.update({ topic:version for topic in topics })
-
     def register_topic(self, topic: str, msg_class: Callable, version: str):
+        """Register message definition for a given topic.
+        
+        Args:
+            topic: The topic that this message definition applies to.
+            msg_class: The Pydantic model definition of the message.
+            version: The version of the message.
+        """
         self._topics[topic] = msg_class
         self._msg_versions[topic] = version
+
+    def register_topics(self, topics: Dict[str, Callable], version: str):
+        """Register a number of message definitions for multiple topics.
+        
+        Args:
+            topics: A mapping of topics to Pydantic model message definitions.
+            version: The version of these messages.
+        """
+        self._topics.update(topics)
+        self._msg_versions.update({ topic:version for topic in topics })
 
     def connect(
         self,
@@ -119,7 +156,9 @@ class Pigeon:
 
         Args:
             topic (str): The topic to subscribe to.
-            callback (Callable): The callback function to handle incoming messages.
+            callback (Callable): The callback function to handle incoming
+                messages. It must accept two arguments, the topic and the
+                message data.
 
         Raises:
             NoSuchTopicException: If the specified topic is not defined.
@@ -131,13 +170,28 @@ class Pigeon:
         self._callbacks[topic] = callback
         self._logger.info(f"Subscribed to {topic} with {callback.__name__}.")
 
+    def subscribe_all(self, callback: Callable):
+        """Subscribes to all registered topics.
+        
+        Args:
+            callback: The function to call when a message is recieved. It must
+                accept two arguments, the topic and the message data.
+        """
+        for topic in self._topics:
+            self.subscribe(topic, callback)
+
     def unsubscribe(self, topic: str):
+        """Unsubscribes from a given topic.
+        
+        Args:
+            topic: The topic to unsubscribe from."""
         self._ensure_topic_exists(topic)
         self._connection.unsubscribe(id=topic)
         self._logger.info(f"Unsubscribed from {topic}.")
         del self._callbacks[topic]
 
     def disconnect(self):
+        """Disconnect from the STOMP message broker."""
         if self._connection.is_connected():
             self._connection.disconnect()
             self._logger.info("Disconnected from STOMP server.")
