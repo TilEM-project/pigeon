@@ -1,18 +1,19 @@
 import logging
-import time 
+import time
 
 import stomp
 from typing import Callable, Dict
 from stomp.utils import Frame
 import stomp.exception
 from importlib.metadata import entry_points
+from inspect import signature
 
 from . import exceptions
 
 
 class Pigeon:
     """A STOMP client with message definitions via Pydantic
-    
+
     This class is a STOMP message client which will automatically serialize and
     deserialize message data using Pydantic models. Before sending or receiving
     messages, topics must be "registered", or in other words, have a Pydantic
@@ -65,7 +66,7 @@ class Pigeon:
 
     def register_topic(self, topic: str, msg_class: Callable, version: str):
         """Register message definition for a given topic.
-        
+
         Args:
             topic: The topic that this message definition applies to.
             msg_class: The Pydantic model definition of the message.
@@ -76,7 +77,7 @@ class Pigeon:
 
     def register_topics(self, topics: Dict[str, Callable], version: str):
         """Register a number of message definitions for multiple topics.
-        
+
         Args:
             topics: A mapping of topics to Pydantic model message definitions.
             version: The version of these messages.
@@ -148,7 +149,14 @@ class Pigeon:
         if message_frame.headers.get("version") != self._msg_versions.get(topic):
             raise exceptions.VersionMismatchException
         message_data = self._topics[topic].deserialize(message_frame.body)
-        self._callbacks[topic](topic, message_data)
+        args = (message_data, topic, message_frame.headers, self)
+        callback = self._callbacks[topic]
+        callback_params = signature(callback).parameters
+        if [param for param in callback_params.values() if param.kind == param.VAR_POSITIONAL]:
+            callback(*args)
+        else:
+            num_args = len(callback_params)
+            callback(*args[:num_args])
 
     def subscribe(self, topic: str, callback: Callable):
         """
@@ -157,8 +165,9 @@ class Pigeon:
         Args:
             topic (str): The topic to subscribe to.
             callback (Callable): The callback function to handle incoming
-                messages. It must accept two arguments, the topic and the
-                message data.
+                messages. It may accept up to four arguments. In order, the
+                arguments are, the recieved message, the topic the message was
+                recieved on, the message headers, and this client.
 
         Raises:
             NoSuchTopicException: If the specified topic is not defined.
@@ -172,7 +181,7 @@ class Pigeon:
 
     def subscribe_all(self, callback: Callable):
         """Subscribes to all registered topics.
-        
+
         Args:
             callback: The function to call when a message is recieved. It must
                 accept two arguments, the topic and the message data.
@@ -182,7 +191,7 @@ class Pigeon:
 
     def unsubscribe(self, topic: str):
         """Unsubscribes from a given topic.
-        
+
         Args:
             topic: The topic to unsubscribe from."""
         self._ensure_topic_exists(topic)
@@ -197,7 +206,7 @@ class Pigeon:
             self._logger.info("Disconnected from STOMP server.")
 
 
-class TEMCommsListener(stomp.ConnectionListener): 
+class TEMCommsListener(stomp.ConnectionListener):
     def __init__(self, callback: Callable):
         self.callback = callback
 
