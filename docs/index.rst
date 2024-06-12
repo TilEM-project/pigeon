@@ -5,6 +5,8 @@ Welcome to Pigeon's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+Pigeon is a combination of a `STOMP client<https://pypi.org/project/stomp-py/>`_, and a message definition system using `Pydantic<https://docs.pydantic.dev/latest/>`_ models. The message definitions can either be defined manually, or Pigeon can search for message definitions via Python entry-points. A template for message definitions is available `here<https://github.com/AllenInstitute/pigeon-msgs-cookiecutter>`_.
+
 .. autoclass:: pigeon.Pigeon
    :members:
 
