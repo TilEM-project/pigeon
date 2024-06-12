@@ -41,7 +41,7 @@ def test_connect(pigeon_client, username, password, expected_log):
 
     # Assert
     pigeon_client._connection.connect.assert_called_with(
-        username=username, password=password, wait=True
+        username=username, passcode=password, wait=True
     )
     pigeon_client._logger.info.assert_called_with(expected_log)
 
