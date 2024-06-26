@@ -3,9 +3,14 @@ import argparse
 import yaml
 
 
-def callback(topic, msg):
-    print(f"Recieved message on topic '{topic}':")
-    print(msg)
+class Listener:
+    def __init__(self):
+        self.message_received = False
+
+    def callback(self, topic, msg):
+        print(f"Recieved message on topic '{topic}':")
+        print(msg)
+        self.message_received = True
 
 
 def main():
@@ -17,6 +22,8 @@ def main():
     parser.add_argument("-p", "--publish", type=str, help="The topic to publish a message to.")
     parser.add_argument("-d", "--data", type=str, help="The YAML/JSON formatted data to publish.")
     parser.add_argument("-s", "--subscribe", type=str, action="append", default=[], help="The topic to subscribe to.")
+    parser.add_argument("--one", action="store_true", help="Exit after receiving one message.")
+    parser.add_argument("-a", "--all", action="store_true", help="Subscribe to all registered topics.")
     parser.add_argument("-l", "--list", action="store_true", help="List registered topics and exit.")
 
     args = parser.parse_args()
@@ -27,33 +34,40 @@ def main():
             print(topic)
         return
 
-    if args.publish is None and args.subscribe is None:
+    if args.publish is None and args.subscribe is None and not args.all:
         print("No action specified.")
         return
-    
+
     if args.publish and args.data is None:
         print("Must also specify data to publish.")
         return
-    
+
     if args.data and args.publish is None:
         print("Most also specify topic to publish data to.")
         return
-    
+
     connection = Pigeon("CLI", args.host, args.port)
     connection.connect(args.username, args.password)
-    
+
     if args.publish:
         connection.send(args.publish, **yaml.safe_load(args.data))
-    
-    for topic in args.subscribe:
-        connection.subscribe(topic, callback)
 
-    if args.subscribe:
+    if args.subscribe or args.all:
+        listener = Listener()
+
+    if args.all:
+        connection.subscribe_all(listener.callback)
+    else:
+        for topic in args.subscribe:
+            connection.subscribe(topic, listener.callback)
+
+    if args.subscribe or args.all:
         try:
-            while True:
+            while not (args.one and listener.message_received):
                 pass
         except KeyboardInterrupt:
             print("exiting")
+    exit(0)
 
 
 if __name__ == "__main__":
