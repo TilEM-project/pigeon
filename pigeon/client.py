@@ -110,7 +110,7 @@ class Pigeon:
         while retries < retry_limit:
             try:
                 self._connection.connect(
-                    username=username, password=password, wait=True
+                    username=username, passcode=password, wait=True
                 )
                 self._logger.info("Connected to STOMP server.")
                 break
