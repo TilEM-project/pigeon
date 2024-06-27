@@ -5,7 +5,7 @@ from pigeon.client import Pigeon
 
 @pytest.fixture
 def pigeon_client():
-    with patch("pigeon.logging.setup_logging") as mock_logging:
+    with patch("pigeon.utils.setup_logging") as mock_logging:
         client = Pigeon(
             "test", host="localhost", port=61613, logger=mock_logging.Logger()
         )
