@@ -75,29 +75,6 @@ def test_three_args(pigeon_client):
     pigeon_client._handle_message(mock_stomp_message)
 
 
-def test_four_args(pigeon_client):
-    mock_stomp_message = MagicMock()
-    mock_stomp_message.headers = {
-        "subscription": "test.msg",
-        "version": "v1.2.3",
-    }
-
-    mock_message = MagicMock()
-
-    def callback(msg, topic, headers, client):
-        mock_message.deserialize.assert_called_with(mock_stomp_message.body)
-        assert msg == mock_message.deserialize()
-        assert topic == "test.msg"
-        assert headers == mock_stomp_message.headers
-        assert client == pigeon_client
-
-    pigeon_client._connection = MagicMock()
-    pigeon_client.register_topic("test.msg", mock_message, "v1.2.3")
-    pigeon_client.subscribe("test.msg", callback)
-
-    pigeon_client._handle_message(mock_stomp_message)
-
-
 def test_var_args(pigeon_client):
     mock_stomp_message = MagicMock()
     mock_stomp_message.headers = {
@@ -109,11 +86,10 @@ def test_var_args(pigeon_client):
 
     def callback(*args):
         mock_message.deserialize.assert_called_with(mock_stomp_message.body)
-        assert len(args) == 4
+        assert len(args) == 3
         assert args[0] == mock_message.deserialize()
         assert args[1] == "test.msg"
         assert args[2] == mock_stomp_message.headers
-        assert args[3] == pigeon_client
 
     pigeon_client._connection = MagicMock()
     pigeon_client.register_topic("test.msg", mock_message, "v1.2.3")

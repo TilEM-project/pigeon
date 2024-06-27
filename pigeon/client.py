@@ -6,9 +6,9 @@ from typing import Callable, Dict
 from stomp.utils import Frame
 import stomp.exception
 from importlib.metadata import entry_points
-from inspect import signature
 
 from . import exceptions
+from .utils import call_with_correct_args
 
 
 class Pigeon:
@@ -149,14 +149,9 @@ class Pigeon:
         if message_frame.headers.get("version") != self._msg_versions.get(topic):
             raise exceptions.VersionMismatchException
         message_data = self._topics[topic].deserialize(message_frame.body)
-        args = (message_data, topic, message_frame.headers, self)
-        callback = self._callbacks[topic]
-        callback_params = signature(callback).parameters
-        if [param for param in callback_params.values() if param.kind == param.VAR_POSITIONAL]:
-            callback(*args)
-        else:
-            num_args = len(callback_params)
-            callback(*args[:num_args])
+        call_with_correct_args(
+            self._callbacks[topic], message_data, topic, message_frame.headers
+        )
 
     def subscribe(self, topic: str, callback: Callable):
         """

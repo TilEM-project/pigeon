@@ -15,7 +15,7 @@ class MockMessage(BaseMessage):
 
 @pytest.fixture
 def pigeon_client():
-    with patch("pigeon.logging.setup_logging") as mock_logging:
+    with patch("pigeon.utils.setup_logging") as mock_logging:
         topics = {"topic1": MockMessage}
         client = Pigeon(
             "test", host="localhost", port=61613, logger=mock_logging.Logger()
@@ -113,7 +113,7 @@ def test_send_no_such_topic(pigeon_client, topic, data):
 @pytest.mark.parametrize(
     "topic, callback_name, expected_log",
     [
-        ("topic1", "callback", "Subscribed to topic1 with callback."),
+        ("topic1", "callback", "Subscribed to topic1 with {}."),
     ],
     ids=["subscribe-new-topic"],
 )
@@ -129,7 +129,7 @@ def test_subscribe(pigeon_client, topic, callback_name, expected_log):
     # Assert
     assert pigeon_client._callbacks[topic] == callback
     pigeon_client._connection.subscribe.assert_called_with(destination=topic, id=topic)
-    pigeon_client._logger.info.assert_called_with(expected_log)
+    pigeon_client._logger.info.assert_called_with(expected_log.format(callback))
 
 
 @pytest.mark.parametrize(
