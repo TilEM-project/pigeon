@@ -1,5 +1,5 @@
 import logging
-import time 
+import time
 
 import stomp
 from typing import Callable, Dict
@@ -8,11 +8,16 @@ import stomp.exception
 from importlib.metadata import entry_points
 
 from . import exceptions
+from .utils import call_with_correct_args
+
+
+def get_str_time_ms():
+    return str(int(time.time_ns() / 1e6))
 
 
 class Pigeon:
     """A STOMP client with message definitions via Pydantic
-    
+
     This class is a STOMP message client which will automatically serialize and
     deserialize message data using Pydantic models. Before sending or receiving
     messages, topics must be "registered", or in other words, have a Pydantic
@@ -65,7 +70,7 @@ class Pigeon:
 
     def register_topic(self, topic: str, msg_class: Callable, version: str):
         """Register message definition for a given topic.
-        
+
         Args:
             topic: The topic that this message definition applies to.
             msg_class: The Pydantic model definition of the message.
@@ -76,7 +81,7 @@ class Pigeon:
 
     def register_topics(self, topics: Dict[str, Callable], version: str):
         """Register a number of message definitions for multiple topics.
-        
+
         Args:
             topics: A mapping of topics to Pydantic model message definitions.
             version: The version of these messages.
@@ -132,7 +137,11 @@ class Pigeon:
         """
         self._ensure_topic_exists(topic)
         serialized_data = self._topics[topic](**data).serialize()
-        headers = dict(service=self._service, version=self._msg_versions[topic])
+        headers = dict(
+            service=self._service,
+            version=self._msg_versions[topic],
+            sent_at=get_str_time_ms(),
+        )
         self._connection.send(destination=topic, body=serialized_data, headers=headers)
         self._logger.debug(f"Sent data to {topic}: {serialized_data}")
 
@@ -148,7 +157,9 @@ class Pigeon:
         if message_frame.headers.get("version") != self._msg_versions.get(topic):
             raise exceptions.VersionMismatchException
         message_data = self._topics[topic].deserialize(message_frame.body)
-        self._callbacks[topic](topic, message_data)
+        call_with_correct_args(
+            self._callbacks[topic], message_data, topic, message_frame.headers
+        )
 
     def subscribe(self, topic: str, callback: Callable):
         """
@@ -157,8 +168,9 @@ class Pigeon:
         Args:
             topic (str): The topic to subscribe to.
             callback (Callable): The callback function to handle incoming
-                messages. It must accept two arguments, the topic and the
-                message data.
+                messages. It may accept up to three arguments. In order, the
+                arguments are, the recieved message, the topic the message was
+                recieved on, and the message headers.
 
         Raises:
             NoSuchTopicException: If the specified topic is not defined.
@@ -168,11 +180,11 @@ class Pigeon:
         if topic not in self._callbacks:
             self._connection.subscribe(destination=topic, id=topic)
         self._callbacks[topic] = callback
-        self._logger.info(f"Subscribed to {topic} with {callback.__name__}.")
+        self._logger.info(f"Subscribed to {topic} with {callback}.")
 
     def subscribe_all(self, callback: Callable):
         """Subscribes to all registered topics.
-        
+
         Args:
             callback: The function to call when a message is recieved. It must
                 accept two arguments, the topic and the message data.
@@ -182,7 +194,7 @@ class Pigeon:
 
     def unsubscribe(self, topic: str):
         """Unsubscribes from a given topic.
-        
+
         Args:
             topic: The topic to unsubscribe from."""
         self._ensure_topic_exists(topic)
@@ -197,9 +209,10 @@ class Pigeon:
             self._logger.info("Disconnected from STOMP server.")
 
 
-class TEMCommsListener(stomp.ConnectionListener): 
+class TEMCommsListener(stomp.ConnectionListener):
     def __init__(self, callback: Callable):
         self.callback = callback
 
     def on_message(self, frame):
+        frame.headers["recieved_at"] = get_str_time_ms()
         self.callback(frame)

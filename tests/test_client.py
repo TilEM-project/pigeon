@@ -15,7 +15,7 @@ class MockMessage(BaseMessage):
 
 @pytest.fixture
 def pigeon_client():
-    with patch("pigeon.logging.setup_logging") as mock_logging:
+    with patch("pigeon.utils.setup_logging") as mock_logging:
         topics = {"topic1": MockMessage}
         client = Pigeon(
             "test", host="localhost", port=61613, logger=mock_logging.Logger()
@@ -80,23 +80,25 @@ def test_connect_failure(pigeon_client, username, password):
     ids=["send-data"],
 )
 def test_send(pigeon_client, topic, data, expected_serialized_data):
-    
-    
-    expected_headers = {"service": "test", "version": __version__}
+
+    expected_headers = {"service": "test", "version": __version__, "sent_at": "1"}
     # Arrange
-    pigeon_client._topics[topic] = MockMessage
-    pigeon_client._connection.send = MagicMock()
+    with patch("pigeon.client.time.time_ns", lambda: 1e6):
+        pigeon_client._topics[topic] = MockMessage
+        pigeon_client._connection.send = MagicMock()
 
-    # Act
-    pigeon_client.send(topic, **data)
+        # Act
+        pigeon_client.send(topic, **data)
 
-    # Assert
-    pigeon_client._connection.send.assert_called_with(
-        destination=topic, body=expected_serialized_data, headers=expected_headers
-    )
-    pigeon_client._logger.debug.assert_called_with(
-        f"Sent data to {topic}: {expected_serialized_data}"
-    )
+        # Assert
+        pigeon_client._connection.send.assert_called_with(
+            destination=topic, body=expected_serialized_data, headers=expected_headers
+        )
+        pigeon_client._logger.debug.assert_called_with(
+            f"Sent data to {topic}: {expected_serialized_data}"
+        )
+
+
 @pytest.mark.parametrize(
     "topic, data",
     [
@@ -113,7 +115,7 @@ def test_send_no_such_topic(pigeon_client, topic, data):
 @pytest.mark.parametrize(
     "topic, callback_name, expected_log",
     [
-        ("topic1", "callback", "Subscribed to topic1 with callback."),
+        ("topic1", "callback", "Subscribed to topic1 with {}."),
     ],
     ids=["subscribe-new-topic"],
 )
@@ -129,7 +131,7 @@ def test_subscribe(pigeon_client, topic, callback_name, expected_log):
     # Assert
     assert pigeon_client._callbacks[topic] == callback
     pigeon_client._connection.subscribe.assert_called_with(destination=topic, id=topic)
-    pigeon_client._logger.info.assert_called_with(expected_log)
+    pigeon_client._logger.info.assert_called_with(expected_log.format(callback))
 
 
 @pytest.mark.parametrize(

@@ -1,30 +1,71 @@
 from .client import Pigeon
 import argparse
 import yaml
+from functools import partial
 
 
 class Listener:
-    def __init__(self):
+    def __init__(self, disp_headers):
         self.message_received = False
+        self.disp_headers = disp_headers
 
-    def callback(self, topic, msg):
+    def callback(self, msg, topic, headers):
         print(f"Recieved message on topic '{topic}':")
         print(msg)
+        if self.disp_headers:
+            print("With headers:")
+            for key, val in headers.items():
+                print(f"{key}={val}")
         self.message_received = True
 
 
 def main():
     parser = argparse.ArgumentParser(prog="Pigeon CLI")
-    parser.add_argument("--host", type=str, default="127.0.0.1", help="The message broker to connect to.")
-    parser.add_argument("--port", type=int, default=61616, help="The port to use for the connection.")
-    parser.add_argument("--username", type=str, help="The username to use when connecting to the STOMP server.")
-    parser.add_argument("--password", type=str, help="The password to use when connecting to the STOMP server.")
-    parser.add_argument("-p", "--publish", type=str, help="The topic to publish a message to.")
-    parser.add_argument("-d", "--data", type=str, help="The YAML/JSON formatted data to publish.")
-    parser.add_argument("-s", "--subscribe", type=str, action="append", default=[], help="The topic to subscribe to.")
-    parser.add_argument("--one", action="store_true", help="Exit after receiving one message.")
-    parser.add_argument("-a", "--all", action="store_true", help="Subscribe to all registered topics.")
-    parser.add_argument("-l", "--list", action="store_true", help="List registered topics and exit.")
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        help="The message broker to connect to.",
+    )
+    parser.add_argument(
+        "--port", type=int, default=61616, help="The port to use for the connection."
+    )
+    parser.add_argument(
+        "--username",
+        type=str,
+        help="The username to use when connecting to the STOMP server.",
+    )
+    parser.add_argument(
+        "--password",
+        type=str,
+        help="The password to use when connecting to the STOMP server.",
+    )
+    parser.add_argument(
+        "-p", "--publish", type=str, help="The topic to publish a message to."
+    )
+    parser.add_argument(
+        "-d", "--data", type=str, help="The YAML/JSON formatted data to publish."
+    )
+    parser.add_argument(
+        "-s",
+        "--subscribe",
+        type=str,
+        action="append",
+        default=[],
+        help="The topic to subscribe to.",
+    )
+    parser.add_argument(
+        "-a", "--all", action="store_true", help="Subscribe to all registered topics."
+    )
+    parser.add_argument(
+        "--one", action="store_true", help="Exit after receiving one message."
+    )
+    parser.add_argument(
+        "-l", "--list", action="store_true", help="List registered topics and exit."
+    )
+    parser.add_argument(
+        "--headers", action="store_true", help="Display headers of received messages."
+    )
 
     args = parser.parse_args()
 
@@ -53,7 +94,7 @@ def main():
         connection.send(args.publish, **yaml.safe_load(args.data))
 
     if args.subscribe or args.all:
-        listener = Listener()
+        listener = Listener(args.headers)
 
     if args.all:
         connection.subscribe_all(listener.callback)
