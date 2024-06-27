@@ -168,9 +168,9 @@ class Pigeon:
         Args:
             topic (str): The topic to subscribe to.
             callback (Callable): The callback function to handle incoming
-                messages. It may accept up to four arguments. In order, the
+                messages. It may accept up to three arguments. In order, the
                 arguments are, the recieved message, the topic the message was
-                recieved on, the message headers, and this client.
+                recieved on, and the message headers.
 
         Raises:
             NoSuchTopicException: If the specified topic is not defined.
