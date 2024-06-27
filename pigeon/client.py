@@ -177,7 +177,7 @@ class Pigeon:
         if topic not in self._callbacks:
             self._connection.subscribe(destination=topic, id=topic)
         self._callbacks[topic] = callback
-        self._logger.info(f"Subscribed to {topic} with {callback.__name__}.")
+        self._logger.info(f"Subscribed to {topic} with {callback}.")
 
     def subscribe_all(self, callback: Callable):
         """Subscribes to all registered topics.
