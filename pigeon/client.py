@@ -11,6 +11,10 @@ from . import exceptions
 from .utils import call_with_correct_args
 
 
+def get_str_time_ms():
+    return str(int(time.time_ns() / 1e6))
+
+
 class Pigeon:
     """A STOMP client with message definitions via Pydantic
 
@@ -133,7 +137,11 @@ class Pigeon:
         """
         self._ensure_topic_exists(topic)
         serialized_data = self._topics[topic](**data).serialize()
-        headers = dict(service=self._service, version=self._msg_versions[topic])
+        headers = dict(
+            service=self._service,
+            version=self._msg_versions[topic],
+            sent_at=get_str_time_ms(),
+        )
         self._connection.send(destination=topic, body=serialized_data, headers=headers)
         self._logger.debug(f"Sent data to {topic}: {serialized_data}")
 
@@ -206,4 +214,5 @@ class TEMCommsListener(stomp.ConnectionListener):
         self.callback = callback
 
     def on_message(self, frame):
+        frame.headers["recieved_at"] = get_str_time_ms()
         self.callback(frame)

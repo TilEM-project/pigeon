@@ -80,23 +80,25 @@ def test_connect_failure(pigeon_client, username, password):
     ids=["send-data"],
 )
 def test_send(pigeon_client, topic, data, expected_serialized_data):
-    
-    
-    expected_headers = {"service": "test", "version": __version__}
+
+    expected_headers = {"service": "test", "version": __version__, "sent_at": "1"}
     # Arrange
-    pigeon_client._topics[topic] = MockMessage
-    pigeon_client._connection.send = MagicMock()
+    with patch("pigeon.client.time.time_ns", lambda: 1e6):
+        pigeon_client._topics[topic] = MockMessage
+        pigeon_client._connection.send = MagicMock()
 
-    # Act
-    pigeon_client.send(topic, **data)
+        # Act
+        pigeon_client.send(topic, **data)
 
-    # Assert
-    pigeon_client._connection.send.assert_called_with(
-        destination=topic, body=expected_serialized_data, headers=expected_headers
-    )
-    pigeon_client._logger.debug.assert_called_with(
-        f"Sent data to {topic}: {expected_serialized_data}"
-    )
+        # Assert
+        pigeon_client._connection.send.assert_called_with(
+            destination=topic, body=expected_serialized_data, headers=expected_headers
+        )
+        pigeon_client._logger.debug.assert_called_with(
+            f"Sent data to {topic}: {expected_serialized_data}"
+        )
+
+
 @pytest.mark.parametrize(
     "topic, data",
     [
