@@ -4,13 +4,19 @@ import yaml
 from functools import partial
 
 
-def callback(disp_headers, msg, topic, headers):
-    print(f"Recieved message on topic '{topic}':")
-    print(msg)
-    if disp_headers:
-        print("With headers:")
-        for key, val in headers.items():
-            print(f"{key}={val}")
+class Listener:
+    def __init__(self, disp_headers):
+        self.message_received = False
+        self.disp_headers = disp_headers
+
+    def callback(self, msg, topic, headers):
+        print(f"Recieved message on topic '{topic}':")
+        print(msg)
+        if self.disp_headers:
+            print("With headers:")
+            for key, val in headers.items():
+                print(f"{key}={val}")
+        self.message_received = True
 
 
 def main():
@@ -49,6 +55,9 @@ def main():
         help="The topic to subscribe to.",
     )
     parser.add_argument(
+        "--one", action="store_true", help="Exit after receiving one message."
+    )
+    parser.add_argument(
         "-l", "--list", action="store_true", help="List registered topics and exit."
     )
     parser.add_argument(
@@ -63,7 +72,7 @@ def main():
             print(topic)
         return
 
-    if args.publish is None and args.subscribe is None:
+    if args.publish is None and args.subscribe is None and not args.all:
         print("No action specified.")
         return
 
@@ -81,15 +90,22 @@ def main():
     if args.publish:
         connection.send(args.publish, **yaml.safe_load(args.data))
 
-    for topic in args.subscribe:
-        connection.subscribe(topic, partial(callback, args.headers))
+    if args.subscribe or args.all:
+        listener = Listener(args.headers)
 
-    if args.subscribe:
+    if args.all:
+        connection.subscribe_all(listener.callback)
+    else:
+        for topic in args.subscribe:
+            connection.subscribe(topic, listener.callback)
+
+    if args.subscribe or args.all:
         try:
-            while True:
+            while not (args.one and listener.message_received):
                 pass
         except KeyboardInterrupt:
             print("exiting")
+    exit(0)
 
 
 if __name__ == "__main__":
