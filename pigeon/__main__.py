@@ -55,6 +55,9 @@ def main():
         help="The topic to subscribe to.",
     )
     parser.add_argument(
+        "-a", "--all", action="store_true", help="Subscribe to all registered topics."
+    )
+    parser.add_argument(
         "--one", action="store_true", help="Exit after receiving one message."
     )
     parser.add_argument(
