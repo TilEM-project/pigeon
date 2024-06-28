@@ -86,8 +86,8 @@ class Pigeon:
             topics: A mapping of topics to Pydantic model message definitions.
             version: The version of these messages.
         """
-        self._topics.update(topics)
-        self._msg_versions.update({ topic:version for topic in topics })
+        for topic in topics.items():
+            self.register_topic(*topic, version)
 
     def connect(
         self,
