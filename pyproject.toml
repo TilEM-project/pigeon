@@ -1,6 +1,6 @@
 [project]
 name = "pigeon-client"
-version = "0.1.2"
+version = "1.0.0"
 authors = [
   { name="Cameron Devine", email="cameron.devine@alleninstitute.org" },
 ]
