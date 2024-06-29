@@ -6,12 +6,12 @@ class BaseMessage(pydantic.BaseModel):
 
     def serialize(self) -> str:
         """Serialize the data into a JSON string.
-        
+
         Returns:
             The model data as a JSON string.
         """
         return self.model_dump_json()
-    
+
     @classmethod
     def deserialize(cls, data: str):
         """Instantiate a model from JSON data.

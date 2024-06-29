@@ -31,6 +31,7 @@ class Pigeon:
     automatically discovered and loaded at runtime, unless this mechanism is
     manually disabled.
     """
+
     def __init__(
         self,
         service: str,
@@ -50,13 +51,15 @@ class Pigeon:
             load_topics: If true, load topics from Python entry points.
         """
         self._service = service
-        self._connection = stomp.Connection12([(host, port)],  heartbeats=(10000, 10000))
+        self._connection = stomp.Connection12([(host, port)], heartbeats=(10000, 10000))
         self._topics = {}
         self._msg_versions = {}
         if load_topics:
             self._load_topics()
         self._callbacks: Dict[str, Callable] = {}
-        self._connection.set_listener("listener", TEMCommsListener(self._handle_message))
+        self._connection.set_listener(
+            "listener", TEMCommsListener(self._handle_message)
+        )
         self._logger = logger if logger is not None else self._configure_logging()
 
     @staticmethod
