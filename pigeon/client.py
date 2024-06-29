@@ -6,6 +6,7 @@ from typing import Callable, Dict
 from stomp.utils import Frame
 import stomp.exception
 from importlib.metadata import entry_points
+from pydantic import ValidationError
 
 from . import exceptions
 from .utils import call_with_correct_args
@@ -152,14 +153,38 @@ class Pigeon:
     def _handle_message(self, message_frame: Frame):
         topic = message_frame.headers["subscription"]
         if topic not in self._topics or topic not in self._msg_versions:
-            self._logger.warning(f"Received message for unregistered topic: {topic}")
+            self._logger.warning(
+                f"Received a message on an unregistered topic: {topic}"
+            )
             return
         if message_frame.headers.get("version") != self._msg_versions.get(topic):
-            raise exceptions.VersionMismatchException
-        message_data = self._topics[topic].deserialize(message_frame.body)
-        call_with_correct_args(
-            self._callbacks[topic], message_data, topic, message_frame.headers
-        )
+            self._logger.warning(
+                f"Received a message on topic '{topic}' with an incorrect version {message_frame.headers.get('version')}. Version should be {self._msg_versions.get(topic)}"
+            )
+            return
+        try:
+            message_data = self._topics[topic].deserialize(message_frame.body)
+        except ValidationError as e:
+            self._logger.warning(
+                f"Failed to deserialize message on topic '{topic}' with error:\n{e}"
+            )
+            return
+        callback = self._callbacks.get(topic)
+        if callback is None:
+            self._logger.warning(
+                f"No callback for message received on topic '{topic}'."
+            )
+            return
+        try:
+            call_with_correct_args(callback, message_data, topic, message_frame.headers)
+        except exceptions.SignatureException as e:
+            self._logger.warning(
+                f"Callback signature for topic '{topic}' not acceptable. Call failed with error:\n{e}"
+            )
+        except Exception as e:
+            self._logger.warning(
+                f"Callback for topic '{topic}' failed with error:", exc_info=True
+            )
 
     def subscribe(self, topic: str, callback: Callable):
         """

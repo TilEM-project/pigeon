@@ -1,5 +1,6 @@
 class NoSuchTopicException(Exception):
     pass
 
-class VersionMismatchException(Exception):
+
+class SignatureException(Exception):
     pass

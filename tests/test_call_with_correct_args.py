@@ -1,4 +1,5 @@
 from pigeon.utils import call_with_correct_args
+from pigeon.exceptions import SignatureException
 import pytest
 
 
@@ -6,7 +7,7 @@ def test_not_enough_args():
     def test_func(a, b, c, d):
         return a, b, c, d
 
-    with pytest.raises(TypeError):
+    with pytest.raises(SignatureException):
         call_with_correct_args(test_func, 1, 2, 3)
 
 

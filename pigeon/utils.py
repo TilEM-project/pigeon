@@ -2,6 +2,8 @@ import logging
 import inspect
 from copy import copy
 
+from .exceptions import SignatureException
+
 
 def setup_logging(logger_name: str, log_level: int = logging.INFO):
     logger = logging.getLogger(logger_name)
@@ -31,8 +33,8 @@ def call_with_correct_args(func, *args, **kwargs):
             ]
         )
         if num_args > len(args):
-            raise TypeError(
-                f"Function '{func}' requires {num_args} arguments, but only {len(args)} are available."
+            raise SignatureException(
+                f"Function '{func}' requires {num_args} positional arguments, but only {len(args)} are available."
             )
         args = args[:num_args]
 
