@@ -1,19 +1,43 @@
 import logging
 import inspect
 from copy import copy
+import os
+from logging_loki import LokiQueueHandler
+from multiprocessing import Queue
 
 from .exceptions import SignatureException
 
 
 def setup_logging(logger_name: str, log_level: int = logging.INFO):
     logger = logging.getLogger(logger_name)
-    handler = logging.StreamHandler()
+    stream_handler = logging.StreamHandler()
     formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
     logger.setLevel(log_level)
+    if "LOKI_URL" in os.environ:
+        loki_handler = LokiQueueHandler(
+            Queue(-1),
+            url=os.environ.get("LOKI_URL"),
+            tags=(
+                dict(
+                    [val.strip() for val in tag.split(":")]
+                    for tag in os.environ.get("LOKI_TAGS").split(",")
+                )
+                if "LOKI_TAGS" in os.environ
+                else None
+            ),
+            auth=(
+                (os.environ.get("LOKI_USERNAME"), os.environ.get("LOKI_PASSWORD"))
+                if "LOKI_USERNAME" in os.environ or "LOKI_PASSWORD" in os.environ
+                else None
+            ),
+            version=os.environ.get("LOKI_VERSION"),
+        )
+        loki_handler.setFormatter(formatter)
+        logger.addHandler(loki_handler)
     return logger
 
 
