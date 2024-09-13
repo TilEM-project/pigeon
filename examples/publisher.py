@@ -2,7 +2,7 @@ import os
 import time
 
 from pigeon.client import Pigeon
-from pigeon.logging import setup_logging
+from pigeon.utils import setup_logging
 from pigeon.base_msg import BaseMessage
 
 

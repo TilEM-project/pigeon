@@ -11,10 +11,10 @@ from .exceptions import SignatureException
 def setup_logging(logger_name: str, log_level: int = logging.INFO):
     logger = logging.getLogger(logger_name)
     stream_handler = logging.StreamHandler()
-    formatter = logging.Formatter(
+    stream_formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
-    stream_handler.setFormatter(formatter)
+    stream_handler.setFormatter(stream_formatter)
     logger.addHandler(stream_handler)
     logger.setLevel(log_level)
     if "LOKI_URL" in os.environ:
@@ -36,7 +36,8 @@ def setup_logging(logger_name: str, log_level: int = logging.INFO):
             ),
             version=os.environ.get("LOKI_VERSION"),
         )
-        loki_handler.setFormatter(formatter)
+        loki_formatter = logging.Formatter("%(message)s")
+        loki_handler.setFormatter(loki_formatter)
         logger.addHandler(loki_handler)
     return logger
 
