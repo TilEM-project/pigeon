@@ -78,7 +78,7 @@ class Pigeon:
     def update_state(self):
         name = f'{self.hostname}_{self.pid}_{self.process_name}'
         self.send("update_state", name=name, pid=self.pid, hostname=self.hostname,
-                  process_name=self.process_name, registered_for=list(self._callbacks.keys()))
+                  process_name=self.process_name, subscribed_to=list(self._callbacks.keys()))
 
     @staticmethod
     def _configure_logging() -> logging.Logger:

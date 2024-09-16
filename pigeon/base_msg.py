@@ -42,7 +42,7 @@ class UpdateState(BaseMessage):
     process_name: str
     pid: int
     hostname: str
-    registered_for: list[str]
+    subscribed_to: list[str]
 
 msg_version = "1.0.0"
 
