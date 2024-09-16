@@ -2,19 +2,18 @@ import logging
 import os
 import socket
 import time
+from importlib.metadata import entry_points
+from typing import Callable, Dict
 
 import psutil
 import stomp
-from typing import Callable, Dict
-from stomp.utils import Frame
 import stomp.exception
-from importlib.metadata import entry_points
 from pydantic import ValidationError
-
-from . import exceptions
-from .utils import call_with_correct_args
+from stomp.utils import Frame
 
 from . import base_msg
+from . import exceptions
+from .utils import call_with_correct_args
 
 
 def get_str_time_ms():
