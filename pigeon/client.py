@@ -69,15 +69,14 @@ class Pigeon:
         self.pid = os.getpid()
         self.process_name = psutil.Process(self.pid).name()
         self.hostname = socket.gethostname().split('.')[0]
+        self.name = f'{self.hostname}_{self.pid}_{self.process_name}'
 
     def announce(self, connected=True):
-        name = f'{self.hostname}_{self.pid}_{self.process_name}'
-        self.send("announce_connection", name=name, pid=self.pid, hostname=self.hostname,
+        self.send("announce_connection", name=self.name, pid=self.pid, hostname=self.hostname,
                   process_name=self.process_name, connected=connected)
 
     def update_state(self):
-        name = f'{self.hostname}_{self.pid}_{self.process_name}'
-        self.send("update_state", name=name, pid=self.pid, hostname=self.hostname,
+        self.send("update_state", name=self.name, pid=self.pid, hostname=self.hostname,
                   process_name=self.process_name, subscribed_to=list(self._callbacks.keys()))
 
     @staticmethod
@@ -171,6 +170,7 @@ class Pigeon:
             serialized_data = self._topics[topic](**data).serialize()
 
         headers = dict(
+            source = self.name,
             service=self._service,
             version=self._msg_versions[topic],
             sent_at=get_str_time_ms(),
