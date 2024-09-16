@@ -1,6 +1,9 @@
 import logging
+import os
+import socket
 import time
 
+import psutil
 import stomp
 from typing import Callable, Dict
 from stomp.utils import Frame
@@ -10,6 +13,8 @@ from pydantic import ValidationError
 
 from . import exceptions
 from .utils import call_with_correct_args
+
+from . import base_msg
 
 
 def get_str_time_ms():
@@ -33,12 +38,12 @@ class Pigeon:
     """
 
     def __init__(
-        self,
-        service: str,
-        host: str = "127.0.0.1",
-        port: int = 61616,
-        logger: logging.Logger = None,
-        load_topics: bool = True,
+            self,
+            service: str,
+            host: str = "127.0.0.1",
+            port: int = 61616,
+            logger: logging.Logger = None,
+            load_topics: bool = True,
     ):
         """
         Args:
@@ -61,6 +66,20 @@ class Pigeon:
             "listener", TEMCommsListener(self._handle_message)
         )
         self._logger = logger if logger is not None else self._configure_logging()
+
+        self.pid = os.getpid()
+        self.process_name = psutil.Process(self.pid).name()
+        self.hostname = socket.gethostname().split('.')[0]
+
+    def announce(self, connected=True):
+        name = f'{self.hostname}_{self.pid}_{self.process_name}'
+        self.send("announce_connection", name=name, pid=self.pid, hostname=self.hostname,
+                  process_name=self.process_name, connected=connected)
+
+    def update_state(self):
+        name = f'{self.hostname}_{self.pid}_{self.process_name}'
+        self.send("update_state", name=name, pid=self.pid, hostname=self.hostname,
+                  process_name=self.process_name, registered_for=list(self._callbacks.keys()))
 
     @staticmethod
     def _configure_logging() -> logging.Logger:
@@ -94,10 +113,10 @@ class Pigeon:
             self.register_topic(*topic, version)
 
     def connect(
-        self,
-        username: str = None,
-        password: str = None,
-        retry_limit: int = 8,
+            self,
+            username: str = None,
+            password: str = None,
+            retry_limit: int = 8,
     ):
         """
         Connects to the STOMP server using the provided username and password.
@@ -127,6 +146,11 @@ class Pigeon:
                         f"Could not connect to server: {e}"
                     ) from e
 
+        for topic, callback in base_msg.topics.items():
+            self.register_topic(topic, callback, version=base_msg.msg_version)
+        self.subscribe("request_state", self.update_state)
+        self.announce()
+
     def send(self, topic: str, **data):
         """
         Sends data to the specified topic.
@@ -140,7 +164,13 @@ class Pigeon:
 
         """
         self._ensure_topic_exists(topic)
-        serialized_data = self._topics[topic](**data).serialize()
+
+        # Users shouldn't have to worry about what core messages are, so they exist as a special case.
+        if topic in base_msg.topics:
+            serialized_data = base_msg.topics[topic](**data).serialize()
+        else:
+            serialized_data = self._topics[topic](**data).serialize()
+
         headers = dict(
             service=self._service,
             version=self._msg_versions[topic],
@@ -189,7 +219,7 @@ class Pigeon:
                 f"Callback for topic '{topic}' failed with error:", exc_info=True
             )
 
-    def subscribe(self, topic: str, callback: Callable):
+    def subscribe(self, topic: str, callback: Callable, send_update=True):
         """
         Subscribes to a topic and associates a callback function to handle incoming messages.
 
@@ -209,16 +239,26 @@ class Pigeon:
             self._connection.subscribe(destination=topic, id=topic)
         self._callbacks[topic] = callback
         self._logger.info(f"Subscribed to {topic} with {callback}.")
+        if send_update:
+            self.update_state()
 
-    def subscribe_all(self, callback: Callable):
+    def subscribe_all(self, callback: Callable, include_core=False):
         """Subscribes to all registered topics.
 
         Args:
             callback: The function to call when a message is recieved. It must
                 accept two arguments, the topic and the message data.
+            include_core (bool): If true, subscribe all will subscribe the client to core messages.
         """
+
+        # Additional logic here is to avoid subscribe_all changing behavior and always subscribing to core topics.
         for topic in self._topics:
-            self.subscribe(topic, callback)
+            if topic in base_msg.topics and not include_core:
+                continue
+            if topic is "request_state":
+                continue
+            self.subscribe(topic, callback, send_update=False)
+        self.update_state()
 
     def unsubscribe(self, topic: str):
         """Unsubscribes from a given topic.
@@ -233,6 +273,7 @@ class Pigeon:
     def disconnect(self):
         """Disconnect from the STOMP message broker."""
         if self._connection.is_connected():
+            self.announce(connected=False)
             self._connection.disconnect()
             self._logger.info("Disconnected from STOMP server.")
 
