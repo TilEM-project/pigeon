@@ -1,3 +1,4 @@
 pydantic
 stomp-py
 pyyaml
+psutil
