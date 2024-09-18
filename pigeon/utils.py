@@ -1,6 +1,8 @@
 import logging
 import inspect
 from copy import copy
+import hashlib
+from typing import Callable
 
 from .exceptions import SignatureException
 
@@ -15,6 +17,12 @@ def setup_logging(logger_name: str, log_level: int = logging.INFO):
     logger.addHandler(handler)
     logger.setLevel(log_level)
     return logger
+
+
+def get_message_hash(msg_cls: Callable):
+    hash = hashlib.sha1()
+    hash.update(inspect.getsource(msg_cls).encode("utf8"))
+    return hash.hexdigest()
 
 
 def call_with_correct_args(func, *args, **kwargs):

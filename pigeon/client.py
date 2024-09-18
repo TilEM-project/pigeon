@@ -9,7 +9,7 @@ from importlib.metadata import entry_points
 from pydantic import ValidationError
 
 from . import exceptions
-from .utils import call_with_correct_args
+from .utils import get_message_hash, call_with_correct_args
 
 
 def get_str_time_ms():
@@ -26,10 +26,9 @@ class Pigeon:
     in two ways. One is to use the register_topic(), or register_topics()
     methods. The other is to have message definitions in a Python package
     with an entry point defined in the pigeon.msgs group. This entry point
-    should provide a tuple containing a mapping of topics to Pydantic models,
-    and the message version. Topics defined in this manner will be
-    automatically discovered and loaded at runtime, unless this mechanism is
-    manually disabled.
+    should provide a tuple containing a mapping of topics to Pydantic models.
+    Topics defined in this manner will be automatically discovered and loaded at
+    runtime, unless this mechanism is manually disabled.
     """
 
     def __init__(
@@ -53,7 +52,7 @@ class Pigeon:
         self._service = service
         self._connection = stomp.Connection12([(host, port)], heartbeats=(10000, 10000))
         self._topics = {}
-        self._msg_versions = {}
+        self._hashes = {}
         if load_topics:
             self._load_topics()
         self._callbacks: Dict[str, Callable] = {}
@@ -72,26 +71,24 @@ class Pigeon:
         for entrypoint in entry_points(group="pigeon.msgs"):
             self.register_topics(*entrypoint.load())
 
-    def register_topic(self, topic: str, msg_class: Callable, version: str):
+    def register_topic(self, topic: str, msg_class: Callable):
         """Register message definition for a given topic.
 
         Args:
             topic: The topic that this message definition applies to.
             msg_class: The Pydantic model definition of the message.
-            version: The version of the message.
         """
         self._topics[topic] = msg_class
-        self._msg_versions[topic] = version
+        self._hashes[topic] = get_message_hash(msg_class)
 
-    def register_topics(self, topics: Dict[str, Callable], version: str):
+    def register_topics(self, topics: Dict[str, Callable]):
         """Register a number of message definitions for multiple topics.
 
         Args:
             topics: A mapping of topics to Pydantic model message definitions.
-            version: The version of these messages.
         """
         for topic in topics.items():
-            self.register_topic(*topic, version)
+            self.register_topic(*topic)
 
     def connect(
         self,
@@ -143,26 +140,26 @@ class Pigeon:
         serialized_data = self._topics[topic](**data).serialize()
         headers = dict(
             service=self._service,
-            version=self._msg_versions[topic],
+            hash=self._hashes[topic],
             sent_at=get_str_time_ms(),
         )
         self._connection.send(destination=topic, body=serialized_data, headers=headers)
         self._logger.debug(f"Sent data to {topic}: {serialized_data}")
 
     def _ensure_topic_exists(self, topic: str):
-        if topic not in self._topics or topic not in self._msg_versions:
+        if topic not in self._topics or topic not in self._hashes:
             raise exceptions.NoSuchTopicException(f"Topic {topic} not defined.")
 
     def _handle_message(self, message_frame: Frame):
         topic = message_frame.headers["subscription"]
-        if topic not in self._topics or topic not in self._msg_versions:
+        if topic not in self._topics or topic not in self._hashes:
             self._logger.warning(
                 f"Received a message on an unregistered topic: {topic}"
             )
             return
-        if message_frame.headers.get("version") != self._msg_versions.get(topic):
+        if message_frame.headers.get("hash") != self._hashes.get(topic):
             self._logger.warning(
-                f"Received a message on topic '{topic}' with an incorrect version {message_frame.headers.get('version')}. Version should be {self._msg_versions.get(topic)}"
+                f"Received a message on topic '{topic}' with an incorrect hash: {message_frame.headers.get('hash')}. Expected: {self._hashes.get(topic)}"
             )
             return
         try:
