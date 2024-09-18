@@ -27,7 +27,7 @@ class BaseMessage(pydantic.BaseModel):
 
 class AnnounceConnection(BaseMessage):
     name: str
-    process_name: str
+    service: str
     pid: int
     hostname: str
     connected: bool
@@ -39,7 +39,7 @@ class RequestState(BaseMessage):
 
 class UpdateState(BaseMessage):
     name: str
-    process_name: str
+    service: str
     pid: int
     hostname: str
     subscribed_to: list[str]
@@ -47,7 +47,7 @@ class UpdateState(BaseMessage):
 msg_version = "1.0.0"
 
 topics = {
-    "announce_connection": AnnounceConnection,
-    "request_state": RequestState,
-    "update_state": UpdateState
+    "&_announce_connection": AnnounceConnection,
+    "&_request_state": RequestState,
+    "&_update_state": UpdateState
 }
