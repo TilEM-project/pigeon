@@ -70,12 +70,17 @@ class Pigeon:
         self.process_name = psutil.Process(self.pid).name()
         self.hostname = socket.gethostname().split('.')[0]
         self.name = f'{self.hostname}_{self.pid}_{self.process_name}'
+        if self._service:
+            self.name = f"{self._service}_{self.name}"
 
-    def announce(self, connected=True):
+        for topic, callback in base_msg.topics.items():
+            self.register_topic(topic, callback, version=base_msg.msg_version)
+
+    def _announce(self, connected=True):
         self.send("announce_connection", name=self.name, pid=self.pid, hostname=self.hostname,
                   process_name=self.process_name, connected=connected)
 
-    def update_state(self):
+    def _update_state(self):
         self.send("update_state", name=self.name, pid=self.pid, hostname=self.hostname,
                   process_name=self.process_name, subscribed_to=list(self._callbacks.keys()))
 
@@ -144,10 +149,9 @@ class Pigeon:
                         f"Could not connect to server: {e}"
                     ) from e
 
-        for topic, callback in base_msg.topics.items():
-            self.register_topic(topic, callback, version=base_msg.msg_version)
-        self.subscribe("request_state", self.update_state)
-        self.announce()
+
+        self.subscribe("request_state", self._update_state)
+        self._announce()
 
     def send(self, topic: str, **data):
         """
@@ -162,12 +166,7 @@ class Pigeon:
 
         """
         self._ensure_topic_exists(topic)
-
-        # Users shouldn't have to worry about what core messages are, so they exist as a special case.
-        if topic in base_msg.topics:
-            serialized_data = base_msg.topics[topic](**data).serialize()
-        else:
-            serialized_data = self._topics[topic](**data).serialize()
+        serialized_data = self._topics[topic](**data).serialize()
 
         headers = dict(
             source = self.name,
@@ -239,7 +238,7 @@ class Pigeon:
         self._callbacks[topic] = callback
         self._logger.info(f"Subscribed to {topic} with {callback}.")
         if send_update:
-            self.update_state()
+            self._update_state()
 
     def subscribe_all(self, callback: Callable, include_core=False):
         """Subscribes to all registered topics.
@@ -257,7 +256,7 @@ class Pigeon:
             if topic is "request_state":
                 continue
             self.subscribe(topic, callback, send_update=False)
-        self.update_state()
+        self._update_state()
 
     def unsubscribe(self, topic: str):
         """Unsubscribes from a given topic.
@@ -272,7 +271,7 @@ class Pigeon:
     def disconnect(self):
         """Disconnect from the STOMP message broker."""
         if self._connection.is_connected():
-            self.announce(connected=False)
+            self._announce(connected=False)
             self._connection.disconnect()
             self._logger.info("Disconnected from STOMP server.")
 
