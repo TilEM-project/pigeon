@@ -23,3 +23,31 @@ class BaseMessage(pydantic.BaseModel):
             An instantiation of the model using the JSON data.
         """
         return cls.model_validate_json(data)
+
+
+class AnnounceConnection(BaseMessage):
+    name: str
+    service: str
+    pid: int
+    hostname: str
+    connected: bool
+
+
+class RequestState(BaseMessage):
+    ...
+
+
+class UpdateState(BaseMessage):
+    name: str
+    service: str
+    pid: int
+    hostname: str
+    subscribed_to: list[str]
+
+msg_version = "1.0.0"
+
+topics = {
+    "&_announce_connection": AnnounceConnection,
+    "&_request_state": RequestState,
+    "&_update_state": UpdateState
+}

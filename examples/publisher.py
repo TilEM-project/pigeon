@@ -3,7 +3,7 @@ import time
 
 from pigeon.client import Pigeon
 from pigeon.logging import setup_logging
-from pigeon.base_msg import BaseMessage
+from pigeon.messages import BaseMessage
 
 
 class TestMsg(BaseMessage):
