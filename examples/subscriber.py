@@ -1,8 +1,8 @@
 import os
 
 from pigeon.client import Pigeon
-from pigeon.logging import setup_logging
-from pigeon.messages import BaseMessage
+from pigeon.utils import setup_logging
+from pigeon import BaseMessage
 
 logger = setup_logging("subscriber")
 
