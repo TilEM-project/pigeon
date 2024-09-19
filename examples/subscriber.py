@@ -2,7 +2,7 @@ import os
 
 from pigeon.client import Pigeon
 from pigeon.utils import setup_logging
-from pigeon.base_msg import BaseMessage
+from pigeon import BaseMessage
 
 logger = setup_logging("subscriber")
 
