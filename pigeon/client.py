@@ -36,12 +36,12 @@ class Pigeon:
     """
 
     def __init__(
-            self,
-            service: str,
-            host: str = "127.0.0.1",
-            port: int = 61616,
-            logger: logging.Logger = None,
-            load_topics: bool = True,
+        self,
+        service: str,
+        host: str = "127.0.0.1",
+        port: int = 61616,
+        logger: logging.Logger = None,
+        load_topics: bool = True,
     ):
         """
         Args:
@@ -66,20 +66,31 @@ class Pigeon:
         self._logger = logger if logger is not None else self._configure_logging()
 
         self._pid = os.getpid()
-        self._hostname = socket.gethostname().split('.')[0]
+        self._hostname = socket.gethostname().split(".")[0]
         self._name = f"{self._service}_{self._pid}_{self._hostname}"
-
 
         for topic, callback in messages.topics.items():
             self.register_topic(topic, callback, version=messages.msg_version)
 
     def _announce(self, connected=True):
-        self.send("&_announce_connection", name=self._name, pid=self._pid, hostname=self._hostname,
-                  service=self._service, connected=connected)
+        self.send(
+            "&_announce_connection",
+            name=self._name,
+            pid=self._pid,
+            hostname=self._hostname,
+            service=self._service,
+            connected=connected,
+        )
 
     def _update_state(self):
-        self.send("&_update_state", name=self._name, pid=self._pid, hostname=self._hostname,
-                  service=self._service, subscribed_to=list(self._callbacks.keys()))
+        self.send(
+            "&_update_state",
+            name=self._name,
+            pid=self._pid,
+            hostname=self._hostname,
+            service=self._service,
+            subscribed_to=list(self._callbacks.keys()),
+        )
 
     @staticmethod
     def _configure_logging() -> logging.Logger:
@@ -108,16 +119,15 @@ class Pigeon:
         Args:
             topics: A mapping of topics to Pydantic model message definitions.
             version: The version of these messages.
-
         """
         for topic in topics.items():
             self.register_topic(*topic, version)
 
     def connect(
-            self,
-            username: str = None,
-            password: str = None,
-            retry_limit: int = 8,
+        self,
+        username: str = None,
+        password: str = None,
+        retry_limit: int = 8,
     ):
         """
         Connects to the STOMP server using the provided username and password.
@@ -126,9 +136,9 @@ class Pigeon:
             username (str, optional): The username to authenticate with. Defaults to None.
             password (str, optional): The password to authenticate with. Defaults to None.
             retry_limit (int, optional): Number of times to attempt connection
+
         Raises:
             stomp.exception.ConnectFailedException: If the connection to the server fails.
-
         """
         retries = 0
         while retries < retry_limit:
@@ -147,7 +157,6 @@ class Pigeon:
                         f"Could not connect to server: {e}"
                     ) from e
 
-
         self.subscribe("&_request_state", self._update_state)
         self._announce()
 
@@ -161,13 +170,12 @@ class Pigeon:
 
         Raises:
             exceptions.NoSuchTopicException: If the specified topic is not defined.
-
         """
         self._ensure_topic_exists(topic)
         serialized_data = self._topics[topic](**data).serialize()
 
         headers = dict(
-            source = self._name,
+            source=self._name,
             service=self._service,
             hostname=self._hostname,
             pid=self._pid,
@@ -230,7 +238,6 @@ class Pigeon:
 
         Raises:
             NoSuchTopicException: If the specified topic is not defined.
-
         """
         self._ensure_topic_exists(topic)
         if topic not in self._callbacks:

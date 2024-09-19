@@ -33,8 +33,7 @@ class AnnounceConnection(BaseMessage):
     connected: bool
 
 
-class RequestState(BaseMessage):
-    ...
+class RequestState(BaseMessage): ...
 
 
 class UpdateState(BaseMessage):
@@ -44,10 +43,11 @@ class UpdateState(BaseMessage):
     hostname: str
     subscribed_to: list[str]
 
+
 msg_version = "1.0.0"
 
 topics = {
     "&_announce_connection": AnnounceConnection,
     "&_request_state": RequestState,
-    "&_update_state": UpdateState
+    "&_update_state": UpdateState,
 }
