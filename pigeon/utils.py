@@ -1,6 +1,8 @@
 import logging
 import inspect
 from copy import copy
+import hashlib
+from typing import Callable
 import os
 from logging_loki import LokiQueueHandler
 from multiprocessing import Queue
@@ -40,6 +42,12 @@ def setup_logging(logger_name: str, log_level: int = logging.INFO):
         loki_handler.setFormatter(loki_formatter)
         logger.addHandler(loki_handler)
     return logger
+
+
+def get_message_hash(msg_cls: Callable):
+    hash = hashlib.sha1()
+    hash.update(inspect.getsource(msg_cls).encode("utf8"))
+    return hash.hexdigest()
 
 
 def call_with_correct_args(func, *args, **kwargs):

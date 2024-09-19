@@ -44,9 +44,7 @@ class UpdateState(BaseMessage):
     subscribed_to: list[str]
 
 
-msg_version = "1.0.0"
-
-topics = {
+core_topics = {
     "&_announce_connection": AnnounceConnection,
     "&_request_state": RequestState,
     "&_update_state": UpdateState,

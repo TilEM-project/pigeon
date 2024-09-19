@@ -13,7 +13,7 @@ Pigeon is a combination of a `STOMP client <https://pypi.org/project/stomp-py/>`
 .. autoclass:: pigeon.BaseMessage
 
 .. autoexception:: pigeon.exceptions.NoSuchTopicException
-.. autoexception:: pigeon.exceptions.VersionMismatchException
+.. autoexception:: pigeon.exceptions.SignatureException
 
 Indices and tables
 ==================

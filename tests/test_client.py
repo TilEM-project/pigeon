@@ -6,9 +6,6 @@ from pigeon.exceptions import NoSuchTopicException
 from pigeon import BaseMessage
 
 
-__version__ = "v1.2.3"
-
-
 class MockMessage(BaseMessage):
     field1: str
 
@@ -18,9 +15,13 @@ def pigeon_client():
     with patch("pigeon.utils.setup_logging") as mock_logging:
         topics = {"topic1": MockMessage}
         client = Pigeon(
-            "test", host="localhost", port=61613, logger=mock_logging.Logger()
+            "test",
+            host="localhost",
+            port=61613,
+            logger=mock_logging.Logger(),
+            load_topics=False,
         )
-        client.register_topics(topics, __version__)
+        client.register_topics(topics)
         yield client
 
 
@@ -93,7 +94,7 @@ def test_send(pigeon_client, topic, data, expected_serialized_data):
         "service": "test",
         "hostname": pigeon_client._hostname,
         "pid": pigeon_client._pid,
-        "version": __version__,
+        "hash": pigeon_client._hashes["topic1"],
         "sent_at": "1",
     }
     # Arrange

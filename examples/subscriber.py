@@ -18,8 +18,10 @@ def handle_test_message(topic, message):
     logger.info(f"Received {topic} message: {message}")
 
 
-connection = Pigeon("Subscriber", host=host, port=port, logger=logger)
-connection.register_topic("test", TestMsg, "1.0")
+connection = Pigeon(
+    "Subscriber", host=host, port=port, logger=logger, load_topics=False
+)
+connection.register_topic("test", TestMsg)
 connection.connect(username="admin", password="password")
 connection.subscribe("test", handle_test_message)
 

@@ -7,6 +7,15 @@ import logging
 from multiprocessing.queues import Queue
 
 
+def test_get_message_hash():
+    class TestMsg:
+        attr_one: int
+        attr_two: str
+        attr_three: float
+
+    assert utils.get_message_hash(TestMsg) == "e6b05f8920682eca0ba8b415c9fa7a7f248ddfce"
+
+
 def test_not_enough_args():
     def test_func(a, b, c, d):
         return a, b, c, d
