@@ -35,6 +35,8 @@ def pigeon_client():
 def test_connect(pigeon_client, username, password, expected_log):
     # Arrange
     pigeon_client._connection.connect = MagicMock()
+    pigeon_client.subscribe = MagicMock()
+    pigeon_client._announce = MagicMock()
 
     # Act
     pigeon_client.connect(username=username, password=password)
@@ -44,6 +46,10 @@ def test_connect(pigeon_client, username, password, expected_log):
         username=username, passcode=password, wait=True
     )
     pigeon_client._logger.info.assert_called_with(expected_log)
+    pigeon_client.subscribe.assert_called_with(
+        "&_request_state", pigeon_client._update_state
+    )
+    pigeon_client._announce.assert_called()
 
 
 @pytest.mark.parametrize(
@@ -82,8 +88,14 @@ def test_connect_failure(pigeon_client, username, password):
     ids=["send-data"],
 )
 def test_send(pigeon_client, topic, data, expected_serialized_data):
-
-    expected_headers = {"service": "test", "version": __version__, "sent_at": "1"}
+    expected_headers = {
+        "source": pigeon_client._name,
+        "service": "test",
+        "hostname": pigeon_client._hostname,
+        "pid": pigeon_client._pid,
+        "version": __version__,
+        "sent_at": "1",
+    }
     # Arrange
     with patch("pigeon.client.time.time_ns", lambda: 1e6):
         pigeon_client._topics[topic] = MockMessage
@@ -126,6 +138,7 @@ def test_subscribe(pigeon_client, topic, callback_name, expected_log):
     pigeon_client._topics[topic] = MockMessage
     callback = MagicMock(__name__=callback_name)
     pigeon_client._connection.subscribe = MagicMock()
+    pigeon_client._update_state = MagicMock()
 
     # Act
     pigeon_client.subscribe(topic, callback)
@@ -134,6 +147,7 @@ def test_subscribe(pigeon_client, topic, callback_name, expected_log):
     assert pigeon_client._callbacks[topic] == callback
     pigeon_client._connection.subscribe.assert_called_with(destination=topic, id=topic)
     pigeon_client._logger.info.assert_called_with(expected_log.format(callback))
+    pigeon_client._update_state.assert_called()
 
 
 @pytest.mark.parametrize(
@@ -177,6 +191,7 @@ def test_disconnect(pigeon_client):
     # Arrange
     pigeon_client._connection.is_connected = MagicMock(return_value=True)
     pigeon_client._connection.disconnect = MagicMock()
+    pigeon_client._announce = MagicMock()
 
     # Act
     pigeon_client.disconnect()
@@ -184,3 +199,4 @@ def test_disconnect(pigeon_client):
     # Assert
     pigeon_client._connection.disconnect.assert_called_once()
     pigeon_client._logger.info.assert_called_with("Disconnected from STOMP server.")
+    pigeon_client._announce.assert_called_with(connected=False)
