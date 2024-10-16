@@ -13,7 +13,7 @@ class MockMessage(BaseMessage):
 @pytest.fixture
 def pigeon_client():
     with patch("pigeon.utils.setup_logging") as mock_logging:
-        topics = {"topic1": MockMessage}
+        topics = {"topic1": MockMessage, "topic2": MockMessage}
         client = Pigeon(
             "test",
             host="localhost",
@@ -165,6 +165,34 @@ def test_subscribe_no_such_topic(pigeon_client, topic):
     # Act & Assert
     with pytest.raises(NoSuchTopicException, match=f"Topic {topic} not defined."):
         pigeon_client.subscribe(topic, callback)
+
+
+def test_subscribe_all(pigeon_client, mocker):
+    pigeon_client._connection = mocker.MagicMock()
+    pigeon_client.subscribe = mocker.MagicMock()
+
+    callback = mocker.MagicMock()
+
+    pigeon_client.subscribe_all(callback)
+
+    assert len(pigeon_client.subscribe.mock_calls) == 2
+    pigeon_client.subscribe.assert_any_call("topic1", callback, send_update=False)
+    pigeon_client.subscribe.assert_any_call("topic2", callback, send_update=False)
+
+
+def test_subscribe_all_with_core(pigeon_client, mocker):
+    pigeon_client._connection = mocker.MagicMock()
+    pigeon_client.subscribe = mocker.MagicMock()
+
+    callback = mocker.MagicMock()
+
+    pigeon_client.subscribe_all(callback, include_core=True)
+
+    assert len(pigeon_client.subscribe.mock_calls) == 4
+    pigeon_client.subscribe.assert_any_call("topic1", callback, send_update=False)
+    pigeon_client.subscribe.assert_any_call("topic2", callback, send_update=False)
+    pigeon_client.subscribe.assert_any_call("&_announce_connection", callback, send_update=False)
+    pigeon_client.subscribe.assert_any_call("&_update_state", callback, send_update=False)
 
 
 @pytest.mark.parametrize(

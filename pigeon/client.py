@@ -253,9 +253,9 @@ class Pigeon:
 
         # Additional logic here is to avoid subscribe_all changing behavior and always subscribing to core topics.
         for topic in self._topics:
-            if topic in messages.topics and not include_core:
+            if topic in messages.core_topics and not include_core:
                 continue
-            if topic is "&_request_state":
+            if topic == "&_request_state":
                 continue
             self.subscribe(topic, callback, send_update=False)
         self._update_state()
