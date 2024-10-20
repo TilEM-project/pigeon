@@ -108,8 +108,9 @@ def mock_loki(mocker):
 
 def test_setup_logging_basic():
     logger = utils.setup_logging("test_logger")
-    assert logger.level == logging.INFO
+    assert logger.level == logging.DEBUG
     assert len(logger.handlers) == 1
+    assert logger.handlers[0].level == logging.INFO
     assert isinstance(logger.handlers[0], logging.StreamHandler)
 
 
@@ -148,9 +149,11 @@ def test_setup_logging_loki(request, vars, tags, auth, mock_loki):
             url=vars.get("LOKI_URL"),
             tags=tags,
             auth=auth,
-            version=vars.get("LOKI_VERSION"),
+            version=vars.get("LOKI_VERSION", "1"),
         )
-        assert logger.level == logging.WARN
+        assert logger.level == logging.DEBUG
+        assert logger.handlers[0].level == logging.WARN
+        mock_loki().setLevel.assert_called_with(logging.DEBUG)
         assert len(logger.handlers) == 2
         assert isinstance(logger.handlers[0], logging.StreamHandler)
         assert logger.handlers[1] == mock_loki()
