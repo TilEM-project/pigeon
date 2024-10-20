@@ -12,14 +12,16 @@ from .exceptions import SignatureException
 
 def setup_logging(logger_name: str, log_level: int = logging.INFO):
     logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.DEBUG)
     stream_handler = logging.StreamHandler()
     stream_formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     stream_handler.setFormatter(stream_formatter)
+    stream_handler.setLevel(log_level)
     logger.addHandler(stream_handler)
-    logger.setLevel(log_level)
     if "LOKI_URL" in os.environ:
+        logger.info("Initializing Loki log handler.")
         loki_handler = LokiQueueHandler(
             Queue(-1),
             url=os.environ.get("LOKI_URL"),
@@ -36,10 +38,11 @@ def setup_logging(logger_name: str, log_level: int = logging.INFO):
                 if "LOKI_USERNAME" in os.environ or "LOKI_PASSWORD" in os.environ
                 else None
             ),
-            version=os.environ.get("LOKI_VERSION"),
+            version=os.environ.get("LOKI_VERSION", "1"),
         )
         loki_formatter = logging.Formatter("%(message)s")
         loki_handler.setFormatter(loki_formatter)
+        loki_handler.setLevel(logging.DEBUG)
         logger.addHandler(loki_handler)
     return logger
 
