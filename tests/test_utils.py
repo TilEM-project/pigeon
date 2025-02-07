@@ -157,3 +157,24 @@ def test_setup_logging_loki(request, vars, tags, auth, mock_loki):
         assert len(logger.handlers) == 2
         assert isinstance(logger.handlers[0], logging.StreamHandler)
         assert logger.handlers[1] == mock_loki()
+
+
+@pytest.mark.parametrize(
+    "var, levels",
+    [
+        ("test.module.one=DEBUG", {"test.module.one": 10}),
+        (
+            "another.module=INFO,that.thing=WARNING",
+            {"another.module": 20, "that.thing": 30},
+        ),
+        (
+            " the.last.module = CRITICAL , the.final.package = ERROR ",
+            {"the.last.module": 50, "the.final.package": 40},
+        ),
+    ],
+)
+def test_setup_logging_levels(var, levels):
+    with patch_env_vars(LOG_LEVEL=var):
+        utils.setup_logging("")
+        for logger, level in levels.items():
+            assert logging.getLogger(logger).level == level
