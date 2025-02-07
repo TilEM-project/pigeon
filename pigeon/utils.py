@@ -11,15 +11,14 @@ from multiprocessing import Queue
 from .exceptions import SignatureException
 
 
-def setup_logging(logger_name: str, log_level: int = logging.INFO):
-    logger = logging.getLogger(logger_name)
-    logger.setLevel(logging.DEBUG)
+def setup_logging(logger_name: str = None, log_level: int = logging.INFO):
+    logger = logging.root if logger_name is None else logging.getLogger(logger_name)
+    logger.setLevel(log_level)
     stream_handler = logging.StreamHandler()
     stream_formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     stream_handler.setFormatter(stream_formatter)
-    stream_handler.setLevel(log_level)
     logger.addHandler(stream_handler)
 
     setup_loki(logger)
@@ -52,7 +51,6 @@ def setup_loki(logger):
     )
     loki_formatter = logging.Formatter("%(message)s")
     loki_handler.setFormatter(loki_formatter)
-    loki_handler.setLevel(logging.DEBUG)
     logger.addHandler(loki_handler)
 
 

@@ -62,7 +62,7 @@ class Pigeon:
         self._connection.set_listener(
             "listener", TEMCommsListener(self._handle_message)
         )
-        self._logger = logger if logger is not None else self._configure_logging()
+        self._logger = logger if logger is not None else logging.getLogger(__name__)
 
         self._pid = os.getpid()
         self._hostname = socket.gethostname().split(".")[0]
@@ -88,12 +88,6 @@ class Pigeon:
             service=self._service,
             subscribed_to=list(self._callbacks.keys()),
         )
-
-    @staticmethod
-    def _configure_logging() -> logging.Logger:
-        logger = logging.getLogger(__name__)
-        logger.setLevel(logging.INFO)
-        return logger
 
     def _load_topics(self):
         for entrypoint in entry_points(group="pigeon.msgs"):
