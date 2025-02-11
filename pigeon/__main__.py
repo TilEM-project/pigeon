@@ -2,21 +2,37 @@ from .client import Pigeon
 import argparse
 import yaml
 from functools import partial
+import json
 
 
 class Listener:
-    def __init__(self, disp_headers):
+    def __init__(self, disp_headers, record):
         self.message_received = False
         self.disp_headers = disp_headers
+        self.record = record
+        self.messages = []
 
     def callback(self, msg, topic, headers):
-        print(f"Recieved message on topic '{topic}':")
-        print(msg)
-        if self.disp_headers:
-            print("With headers:")
-            for key, val in headers.items():
-                print(f"{key}={val}")
+        if self.record:
+            self.messages.append(
+                {
+                    "msg": msg.__dict__,
+                    "topic": topic,
+                    "headers": headers,
+                }
+            )
+        else:
+            print(f"Recieved message on topic '{topic}':")
+            print(msg)
+            if self.disp_headers:
+                print("With headers:")
+                for key, val in headers.items():
+                    print(f"{key}={val}")
         self.message_received = True
+
+    def write(self, path):
+        with open(path, "w") as f:
+            json.dump(self.messages, f)
 
 
 def main():
@@ -58,6 +74,9 @@ def main():
         "-a", "--all", action="store_true", help="Subscribe to all registered topics."
     )
     parser.add_argument(
+        "-r", "--record", type=str, help="Write received messages to a JSON file."
+    )
+    parser.add_argument(
         "--one", action="store_true", help="Exit after receiving one message."
     )
     parser.add_argument(
@@ -84,7 +103,11 @@ def main():
         return
 
     if args.data and args.publish is None:
-        print("Most also specify topic to publish data to.")
+        print("Must also specify topic to publish data to.")
+        return
+
+    if args.record is not None and not (args.subscribe or args.all):
+        print("No subscriptions to record.")
         return
 
     connection = Pigeon("CLI", args.host, args.port)
@@ -94,7 +117,7 @@ def main():
         connection.send(args.publish, **yaml.safe_load(args.data))
 
     if args.subscribe or args.all:
-        listener = Listener(args.headers)
+        listener = Listener(args.headers, args.record is not None)
 
     if args.all:
         connection.subscribe_all(listener.callback)
@@ -107,6 +130,8 @@ def main():
             while not (args.one and listener.message_received):
                 pass
         except KeyboardInterrupt:
+            if args.record is not None:
+                listener.write(args.record)
             print("exiting")
     exit(0)
 
