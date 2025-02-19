@@ -7,6 +7,7 @@ from typing import Callable
 import os
 from logging_loki import LokiQueueHandler
 from multiprocessing import Queue
+from py_zipkin.transport import SimpleHTTPTransport
 
 from .exceptions import SignatureException
 
@@ -68,6 +69,17 @@ def set_log_levels(logger):
             logger.warning(
                 f"Cannot set logger '{name}' to level '{level}' as it is not defined."
             )
+
+
+def setup_zipkin_transport():
+    if "ZIPKIN_HOST" in os.environ:
+        host = os.environ.get("ZIPKIN_HOST")
+        port = int(os.environ.get("ZIPKIN_PORT", 9411))
+        logging.getLogger(__name__).info(
+            f"Configuring zipkin transport via HTTP to '{host}:{port}'."
+        )
+        return SimpleHTTPTransport(host, port)
+    return None
 
 
 def get_message_hash(msg_cls: Callable):

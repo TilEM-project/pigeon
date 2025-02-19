@@ -4,6 +4,8 @@ import socket
 import time
 from importlib.metadata import entry_points
 from typing import Callable, Dict
+from py_zipkin.zipkin import zipkin_span, create_http_headers_for_new_span
+from py_zipkin.request_helpers import extract_zipkin_attrs_from_headers
 
 import stomp
 import stomp.exception
@@ -12,7 +14,11 @@ from stomp.utils import Frame
 
 from . import messages
 from . import exceptions
-from .utils import get_message_hash, call_with_correct_args
+from .utils import (
+    get_message_hash,
+    call_with_correct_args,
+    setup_zipkin_transport,
+)
 
 
 def get_str_time_ms():
@@ -41,6 +47,7 @@ class Pigeon:
         port: int = 61616,
         logger: logging.Logger = None,
         load_topics: bool = True,
+        use_zipkin: bool = True,
     ):
         """
         Args:
@@ -51,6 +58,8 @@ class Pigeon:
             logger: A Python logger to use. If not provided, a logger will be
                 crated.
             load_topics: If true, load topics from Python entry points.
+            use_zipkin: If true, and required environment variables are defined,
+                create new Zipkin spans for all message callbacks.
         """
         self._service = service
         self._connection = stomp.Connection12([(host, port)], heartbeats=(10000, 10000))
@@ -68,6 +77,10 @@ class Pigeon:
         self._hostname = socket.gethostname().split(".")[0]
         self._name = f"{self._service}_{self._pid}_{self._hostname}"
         self.register_topics(messages.core_topics)
+
+        self._zipkin_transport = None
+        if use_zipkin:
+            self._zipkin_transport = setup_zipkin_transport()
 
     def _announce(self, connected=True):
         self.send(
@@ -171,6 +184,8 @@ class Pigeon:
             hash=self._hashes[topic],
             sent_at=get_str_time_ms(),
         )
+        if self._zipkin_transport is not None:
+            headers.update(create_http_headers_for_new_span())
         self._connection.send(destination=topic, body=serialized_data, headers=headers)
         self._logger.debug(f"Sent data to {topic}: {serialized_data}")
 
@@ -204,7 +219,14 @@ class Pigeon:
             )
             return
         try:
-            call_with_correct_args(callback, message_data, topic, message_frame.headers)
+            self.with_zipkin_span_from_headers(
+                message_frame.headers,
+                call_with_correct_args,
+                callback,
+                message_data,
+                topic,
+                message_frame.headers,
+            )
         except exceptions.SignatureException as e:
             self._logger.warning(
                 f"Callback signature for topic '{topic}' not acceptable. Call failed with error:\n{e}"
@@ -213,6 +235,21 @@ class Pigeon:
             self._logger.warning(
                 f"Callback for topic '{topic}' failed with error:", exc_info=True
             )
+
+    def with_zipkin_span_from_headers(self, headers, function, *args, **kwargs):
+        if (
+            self._zipkin_transport is None
+            or (zipkin_attrs := extract_zipkin_attrs_from_headers(headers)) is None
+        ):
+            return function(*args, **kwargs)
+        else:
+            with zipkin_span(
+                service_name=self._service,
+                span_name=headers["subscription"],
+                transport_handler=self._zipkin_transport,
+                zipkin_attrs=zipkin_attrs,
+            ):
+                return function(*args, **kwargs)
 
     def subscribe(self, topic: str, callback: Callable, send_update=True):
         """
