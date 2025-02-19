@@ -187,7 +187,7 @@ class Pigeon:
         if self._zipkin_transport is not None:
             headers.update(create_http_headers_for_new_span())
         self._connection.send(destination=topic, body=serialized_data, headers=headers)
-        self._logger.debug(f"Sent data to {topic}: {serialized_data}")
+        self._logger.debug(f"Sent data to {topic}: {serialized_data[:1000]}")
 
     def _ensure_topic_exists(self, topic: str):
         if topic not in self._topics or topic not in self._hashes:
