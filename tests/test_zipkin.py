@@ -75,7 +75,7 @@ def test_send_zipkin(mocker, use_zipkin, zipkin_headers, message_headers):
     mocker.patch("pigeon.client.get_str_time_ms", return_value="0")
     mocker.patch("pigeon.client.stomp.Connection12")
 
-    client = Pigeon("the service", use_zipkin=use_zipkin, load_topics=False)
+    client = Pigeon("the service", send_zipkin_headers=use_zipkin, load_topics=False)
     client._name = "a name"
     client._hostname = "hosty mchostface"
     client._pid = 1
@@ -162,7 +162,7 @@ def test_receive_zipkin(mocker, use_zipkin, message_headers, span_created):
     mocker.patch("pigeon.client.stomp.Connection12")
     zipkin_span = mocker.patch("pigeon.client.zipkin_span")
 
-    client = Pigeon("the service", use_zipkin=use_zipkin, load_topics=False)
+    client = Pigeon("the service", create_zipkin_spans=use_zipkin, load_topics=False)
 
     client.register_topic("test", Msg)
     client._hashes["test"] = "abc123"

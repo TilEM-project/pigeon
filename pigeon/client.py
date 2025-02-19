@@ -47,7 +47,8 @@ class Pigeon:
         port: int = 61616,
         logger: logging.Logger = None,
         load_topics: bool = True,
-        use_zipkin: bool = True,
+        create_zipkin_spans: bool = True,
+        send_zipkin_headers: bool = True,
     ):
         """
         Args:
@@ -58,8 +59,10 @@ class Pigeon:
             logger: A Python logger to use. If not provided, a logger will be
                 crated.
             load_topics: If true, load topics from Python entry points.
-            use_zipkin: If true, and required environment variables are defined,
-                create new Zipkin spans for all message callbacks.
+            create_zipkin_spans: If true, and required environment variables are present,
+                configure Zipkin transport and create new spans for every received message.
+            send_zipkin_headers: If true, attempt to send Zipkin span propogation headers.
+
         """
         self._service = service
         self._connection = stomp.Connection12([(host, port)], heartbeats=(10000, 10000))
@@ -79,8 +82,9 @@ class Pigeon:
         self.register_topics(messages.core_topics)
 
         self._zipkin_transport = None
-        if use_zipkin:
+        if create_zipkin_spans:
             self._zipkin_transport = setup_zipkin_transport()
+        self._send_zipkin_headers = send_zipkin_headers
 
     def _announce(self, connected=True):
         self.send(
@@ -184,7 +188,7 @@ class Pigeon:
             hash=self._hashes[topic],
             sent_at=get_str_time_ms(),
         )
-        if self._zipkin_transport is not None:
+        if self._send_zipkin_headers:
             headers.update(create_http_headers_for_new_span())
         self._connection.send(destination=topic, body=serialized_data, headers=headers)
         self._logger.debug(f"Sent data to {topic}: {serialized_data[:1000]}")
