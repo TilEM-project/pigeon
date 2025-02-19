@@ -249,7 +249,7 @@ class Pigeon:
         else:
             with zipkin_span(
                 service_name=self._service,
-                span_name=headers["subscription"],
+                span_name=f"handle {headers['subscription']}",
                 transport_handler=self._zipkin_transport,
                 zipkin_attrs=zipkin_attrs,
             ):

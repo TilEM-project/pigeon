@@ -179,7 +179,7 @@ def test_receive_zipkin(mocker, use_zipkin, message_headers, span_created):
     if span_created:
         zipkin_span.assert_called_with(
             service_name=client._service,
-            span_name="test",
+            span_name="handle test",
             transport_handler=client._zipkin_transport,
             zipkin_attrs=ZipkinAttrs("trace_id", "span_id", "parent_id", "0", True),
         )
