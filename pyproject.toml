@@ -28,3 +28,9 @@ Issues = "https://github.com/AllenInstitute/pigeon/issues"
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
+
+[project.optional-dependencies]
+test = [
+  "pytest",
+  "pytest-mock"
+]
