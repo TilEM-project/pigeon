@@ -33,3 +33,6 @@ test = [
   "pytest",
   "pytest-mock"
 ]
+
+[tool.setuptools.packages.find]
+exclude = ["imgs"]
