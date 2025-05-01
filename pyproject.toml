@@ -7,7 +7,7 @@ authors = [
 description = "A STOMP client with message definitions via Pydantic"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "BSD 3 Clause"}
+license = "BSD-3-Clause"
 classifiers = [
   "Intended Audience :: Developers",
   "Programming Language :: Python :: 3.10",
