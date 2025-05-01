@@ -1,3 +1,7 @@
+.. image:: ../images/pigeon_1024.png
+  :width: 400
+  :alt: Pigeon logo
+
 Welcome to Pigeon's documentation!
 ==================================
 
