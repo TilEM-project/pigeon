@@ -26,4 +26,4 @@ When a Pigeon client is instantiated, a logger is created. If desired, logs can 
 
 ## Templates
 
-To ease the creation of services using Pigeon, a [Cookiecutter](https://cookiecutter.readthedocs.io/en/stable/) [template](https://github.com/AllenInstitute/pigeon-service-cookiecutter) is available. Similarly, a [template](https://github.com/AllenInstitute/pigeon-msgs-cookiecutter) for a message definition package is available.
+To ease the creation of services using Pigeon, a [Cookiecutter](https://cookiecutter.readthedocs.io/en/stable/) [template](https://github.com/TilEM-project/pigeon-service-cookiecutter) is available. Similarly, a [template](https://github.com/AllenInstitute/pigeon-msgs-cookiecutter) for a message definition package is available.
