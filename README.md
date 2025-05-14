@@ -1,4 +1,6 @@
-[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/AllenInstitute/pigeon/test.yaml)](https://github.com/AllenInstitute/pigeon/actions)
+![Pigeon logo](imgs/pigeon_1024.png)
+
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/TilEM-project/pigeon/main.yaml)](https://github.com/AllenInstitute/pigeon/actions)
 [![Documentation Status](https://readthedocs.org/projects/pigeon/badge/?version=latest)](https://pigeon.readthedocs.io/en/latest/?badge=latest)
 [![PyPI - Version](https://img.shields.io/pypi/v/pigeon-client)](https://pypi.org/project/pigeon-client/)
 
@@ -24,4 +26,4 @@ When a Pigeon client is instantiated, a logger is created. If desired, logs can 
 
 ## Templates
 
-To ease the creation of services using Pigeon, a [Cookiecutter](https://cookiecutter.readthedocs.io/en/stable/) [template](https://github.com/AllenInstitute/pigeon-service-cookiecutter) is available. Similarly, a [template](https://github.com/TilEM-project/pigeon-msgs-cookiecutter) for a message definition package is available.
+To ease the creation of services using Pigeon, a [Cookiecutter](https://cookiecutter.readthedocs.io/en/stable/) [template](https://github.com/TilEM-project/pigeon-service-cookiecutter) is available. Similarly, a [template](https://github.com/TilEM-project/pigeon-msgs-cookiecutter) for a message definition package is available.
