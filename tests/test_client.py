@@ -4,6 +4,7 @@ from stomp.exception import ConnectFailedException
 from pigeon.client import Pigeon
 from pigeon.exceptions import NoSuchTopicException
 from pigeon import BaseMessage
+from pigeon.messages import core_topics
 
 
 class MockMessage(BaseMessage):
@@ -197,6 +198,19 @@ def test_subscribe_all_with_core(pigeon_client, mocker):
     pigeon_client.subscribe.assert_any_call(
         "&_update_state", callback, send_update=False
     )
+
+
+def test_subscribe_all_no_topics(pigeon_client, mocker):
+    pigeon_client._connection = mocker.MagicMock()
+    pigeon_client.subscribe = mocker.MagicMock()
+
+    pigeon_client._topics = core_topics
+
+    callback = mocker.MagicMock()
+
+    pigeon_client.subscribe_all(callback)
+
+    pigeon_client._logger.warning.assert_called_once()
 
 
 @pytest.mark.parametrize(

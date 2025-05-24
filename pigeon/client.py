@@ -287,6 +287,11 @@ class Pigeon:
         """
 
         # Additional logic here is to avoid subscribe_all changing behavior and always subscribing to core topics.
+        if (
+            len([topic for topic in self._topics if topic not in messages.core_topics])
+            == 0
+        ):
+            self._logger.warning("No non-system topics registered!")
         for topic in self._topics:
             if topic in messages.core_topics and not include_core:
                 continue
