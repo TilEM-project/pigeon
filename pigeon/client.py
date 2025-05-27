@@ -231,7 +231,7 @@ class Pigeon:
         else:
             Thread(
                 target=self._run_callback,
-                args=(message_data, topic, message_frame.headers),
+                args=(callback, message_data, topic, message_frame.headers),
             ).start()
 
     def _run_callback(self, callback, message_data, topic, headers):
