@@ -21,6 +21,7 @@ def pigeon_client():
             port=61613,
             logger=mock_logging.Logger(),
             load_topics=False,
+            connection_timeout=0.5,
         )
         client.register_topics(topics)
         yield client
@@ -40,6 +41,8 @@ def test_connect(pigeon_client, username, password, expected_log):
     pigeon_client.subscribe = MagicMock()
     pigeon_client._announce = MagicMock()
 
+    assert not pigeon_client._connected
+
     # Act
     pigeon_client.connect(username=username, password=password)
 
@@ -52,6 +55,8 @@ def test_connect(pigeon_client, username, password, expected_log):
         "&_request_state", pigeon_client._update_state
     )
     pigeon_client._announce.assert_called()
+
+    assert pigeon_client._connected
 
 
 @pytest.mark.parametrize(
@@ -67,7 +72,6 @@ def test_connect_failure(pigeon_client, username, password):
     pigeon_client._connection.connect = MagicMock(
         side_effect=ConnectFailedException("Connection failed")
     )
-    retry_limit = 1
     pigeon_client._logger.error = MagicMock()
 
     # Act & Assert
@@ -75,11 +79,11 @@ def test_connect_failure(pigeon_client, username, password):
         ConnectFailedException, match="Could not connect to server: Connection failed"
     ):
         pigeon_client.connect(
-            username=username, password=password, retry_limit=retry_limit
+            username=username, password=password
         )
 
     # Assert the logger was called the same number of times as the retry limit
-    assert pigeon_client._logger.error.call_count == retry_limit
+    assert pigeon_client._logger.error.call_count == 1
 
 
 @pytest.mark.parametrize(
@@ -102,6 +106,7 @@ def test_send(pigeon_client, topic, data, expected_serialized_data):
     with patch("pigeon.client.time.time_ns", lambda: 1e6):
         pigeon_client._topics[topic] = MockMessage
         pigeon_client._connection.send = MagicMock()
+        pigeon_client._connected = True
 
         # Act
         pigeon_client.send(topic, **data)
@@ -123,6 +128,7 @@ def test_send(pigeon_client, topic, data, expected_serialized_data):
     ids=["send-data-no-such-topic"],
 )
 def test_send_no_such_topic(pigeon_client, topic, data):
+    pigeon_client._connected = True
     # Act & Assert
     with pytest.raises(NoSuchTopicException, match=f"Topic {topic} not defined."):
         pigeon_client.send(topic, **data)
@@ -203,6 +209,7 @@ def test_subscribe_all_with_core(pigeon_client, mocker):
 def test_subscribe_all_no_topics(pigeon_client, mocker):
     pigeon_client._connection = mocker.MagicMock()
     pigeon_client.subscribe = mocker.MagicMock()
+    pigeon_client._connected = True
 
     pigeon_client._topics = core_topics
 

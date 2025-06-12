@@ -51,6 +51,7 @@ class Pigeon:
         create_zipkin_spans: bool = True,
         send_zipkin_headers: bool = True,
         spawn_threads: bool = False,
+        connection_timeout: float = 10,
     ):
         """
         Args:
@@ -65,18 +66,24 @@ class Pigeon:
                 configure Zipkin transport and create new spans for every received message.
             send_zipkin_headers: If true, attempt to send Zipkin span propogation headers.
             spawn_threads: If true, create a new thread for every message received.
+            connection_timeout: The number of seconds to attempt to connect to the broker.
+                Set to None to attempt to connect indefinitely.
 
         """
         self._service = service
         self._spawn_threads = spawn_threads
         self._connection = stomp.Connection12([(host, port)], heartbeats=(10000, 10000))
+        self._connected = False
+        self._connection_timeout = connection_timeout
+        self._username = None
+        self._password = None
         self._topics = {}
         self._hashes = {}
         if load_topics:
             self._load_topics()
         self._callbacks: Dict[str, Callable] = {}
         self._connection.set_listener(
-            "listener", TEMCommsListener(self._handle_message)
+            "listener", TEMCommsListener(self._handle_message, self._handle_reconnect)
         )
         self._logger = logger if logger is not None else logging.getLogger(__name__)
 
@@ -137,7 +144,6 @@ class Pigeon:
         self,
         username: str = None,
         password: str = None,
-        retry_limit: int = 8,
     ):
         """
         Connects to the STOMP server using the provided username and password.
@@ -150,24 +156,32 @@ class Pigeon:
         Raises:
             stomp.exception.ConnectFailedException: If the connection to the server fails.
         """
-        retries = 0
-        while retries < retry_limit:
+        self._username = username if username is not None else self._username
+        self._password = password if password is not None else self._password
+
+        start = time.time()
+        while True:
             try:
                 self._connection.connect(
-                    username=username, passcode=password, wait=True
+                    username=self._username, passcode=self._password, wait=True
                 )
-                self._logger.info("Connected to STOMP server.")
                 break
             except stomp.exception.ConnectFailedException as e:
-                self._logger.error(f"Connection failed: {e}. Attempting to reconnect.")
-                retries += 1
-                time.sleep(1)
-                if retries == retry_limit:
+                if self._connection_timeout is None or time.time() - start < self._connection_timeout:
+                    self._logger.error(f"Connection failed: {e}. Attempting to reconnect.")
+                    time.sleep(1)
+                else:
                     raise stomp.exception.ConnectFailedException(
                         f"Could not connect to server: {e}"
                     ) from e
 
-        self.subscribe("&_request_state", self._update_state)
+        self._logger.info("Connected to STOMP server.")
+
+        self._connected = True
+
+        if "&_request_state" not in self._callbacks:
+            self.subscribe("&_request_state", self._update_state)
+
         self._announce()
 
     def send(self, topic: str, **data):
@@ -181,6 +195,9 @@ class Pigeon:
         Raises:
             exceptions.NoSuchTopicException: If the specified topic is not defined.
         """
+        if not self._connected:
+            self._logger.warning(f"Not connected to broker! Unable to send message on topic {topic}.")
+            return
         self._ensure_topic_exists(topic)
         serialized_data = self._topics[topic](**data).serialize()
 
@@ -200,6 +217,11 @@ class Pigeon:
     def _ensure_topic_exists(self, topic: str):
         if topic not in self._topics or topic not in self._hashes:
             raise exceptions.NoSuchTopicException(f"Topic {topic} not defined.")
+
+    def _handle_reconnect(self):
+        self._connected = False
+        self._logger.warning("Disconnected from broker. Attempting to reconnect...")
+        self.connect()
 
     def _handle_message(self, message_frame: Frame):
         topic = message_frame.headers["subscription"]
@@ -327,9 +349,13 @@ class Pigeon:
 
 
 class TEMCommsListener(stomp.ConnectionListener):
-    def __init__(self, callback: Callable):
-        self.callback = callback
+    def __init__(self, message_handler: Callable, disconnect_handler: Callable):
+        self.message_handler = message_handler
+        self.disconnect_handler = disconnect_handler
 
     def on_message(self, frame):
         frame.headers["received_at"] = get_str_time_ms()
-        self.callback(frame)
+        self.message_handler(frame)
+
+    def on_disconnected(self):
+        self.disconnect_handler()

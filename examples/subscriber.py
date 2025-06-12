@@ -19,7 +19,7 @@ def handle_test_message(topic, message):
 
 
 connection = Pigeon(
-    "Subscriber", host=host, port=port, logger=logger, load_topics=False
+    "Subscriber", host=host, port=port, logger=logger, load_topics=False, connection_timeout=None,
 )
 connection.register_topic("test", TestMsg)
 connection.connect(username="admin", password="password")

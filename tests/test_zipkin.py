@@ -79,6 +79,7 @@ def test_send_zipkin(mocker, use_zipkin, zipkin_headers, message_headers):
     client._name = "a name"
     client._hostname = "hosty mchostface"
     client._pid = 1
+    client._connected = True
 
     client.register_topic("test", Msg)
     client._hashes["test"] = "abc123"
