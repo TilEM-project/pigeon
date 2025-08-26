@@ -78,9 +78,7 @@ def test_connect_failure(pigeon_client, username, password):
     with pytest.raises(
         ConnectFailedException, match="Could not connect to server: Connection failed"
     ):
-        pigeon_client.connect(
-            username=username, password=password
-        )
+        pigeon_client.connect(username=username, password=password)
 
     # Assert the logger was called the same number of times as the retry limit
     assert pigeon_client._logger.error.call_count == 1

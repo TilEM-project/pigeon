@@ -167,8 +167,13 @@ class Pigeon:
                 )
                 break
             except stomp.exception.ConnectFailedException as e:
-                if self._connection_timeout is None or time.time() - start < self._connection_timeout:
-                    self._logger.error(f"Connection failed: {e}. Attempting to reconnect.")
+                if (
+                    self._connection_timeout is None
+                    or time.time() - start < self._connection_timeout
+                ):
+                    self._logger.error(
+                        f"Connection failed: {e}. Attempting to reconnect."
+                    )
                     time.sleep(1)
                 else:
                     raise stomp.exception.ConnectFailedException(
@@ -196,7 +201,9 @@ class Pigeon:
             exceptions.NoSuchTopicException: If the specified topic is not defined.
         """
         if not self._connected:
-            self._logger.warning(f"Not connected to broker! Unable to send message on topic {topic}.")
+            self._logger.warning(
+                f"Not connected to broker! Unable to send message on topic {topic}."
+            )
             return
         self._ensure_topic_exists(topic)
         serialized_data = self._topics[topic](**data).serialize()
