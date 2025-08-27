@@ -111,7 +111,7 @@ def test_send(pigeon_client, topic, data, expected_serialized_data):
             destination=topic, body=expected_serialized_data, headers=expected_headers
         )
         pigeon_client._logger.debug.assert_called_with(
-            f"Sent data to {topic}: {expected_serialized_data}"
+            f"Sent data to {topic}: {MockMessage(**data)}"
         )
 
 
