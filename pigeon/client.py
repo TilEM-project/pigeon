@@ -206,7 +206,7 @@ class Pigeon:
             )
             return
         self._ensure_topic_exists(topic)
-        serialized_data = self._topics[topic](**data).serialize()
+        message = self._topics[topic](**data)
 
         headers = dict(
             source=self._name,
@@ -218,8 +218,10 @@ class Pigeon:
         )
         if self._send_zipkin_headers:
             headers.update(create_http_headers_for_new_span())
-        self._connection.send(destination=topic, body=serialized_data, headers=headers)
-        self._logger.debug(f"Sent data to {topic}: {serialized_data[:1000]}")
+        self._connection.send(
+            destination=topic, body=message.serialize(), headers=headers
+        )
+        self._logger.debug(f"Sent data to {topic}: {message}")
 
     def _ensure_topic_exists(self, topic: str):
         if topic not in self._topics or topic not in self._hashes:
