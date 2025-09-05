@@ -34,7 +34,7 @@ def test_one_arg(pigeon_client):
     pigeon_client._connection = MagicMock()
     pigeon_client._topics["test.msg"] = mock_message
     pigeon_client._hashes["test.msg"] = "abcd"
-    pigeon_client.subscribe("test.msg", callback)
+    pigeon_client.subscribe("test.msg", callback, False)
 
     pigeon_client._handle_message(mock_stomp_message)
 
@@ -56,7 +56,7 @@ def test_two_args(pigeon_client):
     pigeon_client._connection = MagicMock()
     pigeon_client._topics["test.msg"] = mock_message
     pigeon_client._hashes["test.msg"] = "abcde"
-    pigeon_client.subscribe("test.msg", callback)
+    pigeon_client.subscribe("test.msg", callback, False)
 
     pigeon_client._handle_message(mock_stomp_message)
 
@@ -79,7 +79,7 @@ def test_three_args(pigeon_client):
     pigeon_client._connection = MagicMock()
     pigeon_client._topics["test.msg"] = mock_message
     pigeon_client._hashes["test.msg"] = "123abc"
-    pigeon_client.subscribe("test.msg", callback)
+    pigeon_client.subscribe("test.msg", callback, False)
 
     pigeon_client._handle_message(mock_stomp_message)
 
@@ -103,7 +103,7 @@ def test_var_args(pigeon_client):
     pigeon_client._connection = MagicMock()
     pigeon_client._topics["test.msg"] = mock_message
     pigeon_client._hashes["test.msg"] = "xyz987"
-    pigeon_client.subscribe("test.msg", callback)
+    pigeon_client.subscribe("test.msg", callback, False)
 
     pigeon_client._handle_message(mock_stomp_message)
 
@@ -168,7 +168,7 @@ def test_bad_signature(pigeon_client):
 
     pigeon_client._topics["test"] = MagicMock()
     pigeon_client._hashes["test"] = "lmnop"
-    pigeon_client.subscribe("test", callback)
+    pigeon_client.subscribe("test", callback, False)
     pigeon_client._handle_message(mock_message)
 
     pigeon_client._logger.warning.assert_called_with(
@@ -182,7 +182,7 @@ def test_callback_exception(pigeon_client):
     pigeon_client._topics["test"] = MagicMock()
     pigeon_client._hashes["test"] = "987654321"
     pigeon_client.subscribe(
-        "test", MagicMock(side_effect=RecursionError("This is a test error."))
+        "test", MagicMock(side_effect=RecursionError("This is a test error.")), False
     )
     pigeon_client._handle_message(mock_message)
 

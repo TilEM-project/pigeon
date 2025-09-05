@@ -169,7 +169,7 @@ def test_receive_zipkin(mocker, use_zipkin, message_headers, span_created):
     client._hashes["test"] = "abc123"
 
     callback = mocker.MagicMock()
-    client.subscribe("test", callback)
+    client.subscribe("test", callback, False)
 
     msg = Frame("", body='{"value":"something"}', headers=message_headers)
 

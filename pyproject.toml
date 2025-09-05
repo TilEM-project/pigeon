@@ -31,7 +31,8 @@ dependencies = {file = ["requirements.txt"]}
 [project.optional-dependencies]
 test = [
   "pytest",
-  "pytest-mock"
+  "pytest-mock",
+  "pytest-timeout",
 ]
 
 [tool.setuptools.packages.find]
