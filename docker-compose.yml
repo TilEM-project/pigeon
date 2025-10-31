@@ -6,6 +6,7 @@ services:
     ports:
       - 8161:8161 # Web Console
       - 61613:61613 # STOMP
+      - 61616:61616 # Multiple protocols
     volumes:
       - data:/var/lib/artemis/data
     healthcheck:
