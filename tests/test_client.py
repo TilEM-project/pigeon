@@ -139,9 +139,14 @@ def test_send_no_such_topic(pigeon_client, topic, data):
 
 
 @pytest.mark.timeout(2)
-@pytest.mark.parametrize("class_timeout, method_timeout, timeout", [(0, ..., 0), (0.5, ..., 0.5), (0, 0.3, 0.3), (None, 0.7, 0.7)])
+@pytest.mark.parametrize(
+    "class_timeout, method_timeout, timeout",
+    [(0, ..., 0), (0.5, ..., 0.5), (0, 0.3, 0.3), (None, 0.7, 0.7)],
+)
 @pytest.mark.parametrize("reason", ["connected", OSError, ConnectFailedException])
-def test_send_timeout(mocker, pigeon_client, class_timeout, method_timeout, timeout, reason):
+def test_send_timeout(
+    mocker, pigeon_client, class_timeout, method_timeout, timeout, reason
+):
     client = Pigeon(
         "test",
         host="localhost",
@@ -149,7 +154,8 @@ def test_send_timeout(mocker, pigeon_client, class_timeout, method_timeout, time
         logger=mocker.MagicMock(),
         load_topics=False,
         connection_timeout=0.5,
-        send_timeout=class_timeout)
+        send_timeout=class_timeout,
+    )
     client._connected = reason != "connected"
     client._ensure_topic_exists = mocker.MagicMock()
     client._connection = mocker.MagicMock()
@@ -160,7 +166,6 @@ def test_send_timeout(mocker, pigeon_client, class_timeout, method_timeout, time
     with pytest.raises(TimeoutError):
         client.send("some_topic", timeout=method_timeout, field1="data")
     assert abs(time.time() - start - timeout) < 0.2
-
 
 
 @pytest.mark.parametrize("update_state", [True, False])
@@ -273,7 +278,6 @@ def test_handle_reconnect(pigeon_client, mocker):
 
     pigeon_client.subscribe = mocker.MagicMock()
 
-
     pigeon_client._handle_reconnect()
 
     assert not pigeon_client._connected
@@ -283,7 +287,9 @@ def test_handle_reconnect(pigeon_client, mocker):
     pigeon_client.connect.assert_called_once_with(announce=False)
     pigeon_client.subscribe.assert_any_call("topic2", topic2_cb, send_update=False)
     pigeon_client.subscribe.assert_any_call("topic3", topic3_cb, send_update=False)
-    pigeon_client._logger.warning.assert_called_once_with("Disconnected from broker. Attempting to reconnect...")
+    pigeon_client._logger.warning.assert_called_once_with(
+        "Disconnected from broker. Attempting to reconnect..."
+    )
 
 
 @pytest.mark.parametrize(

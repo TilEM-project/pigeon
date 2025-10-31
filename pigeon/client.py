@@ -145,10 +145,7 @@ class Pigeon:
             self.register_topic(*topic)
 
     def connect(
-        self,
-        username: str = None,
-        password: str = None,
-        announce: bool = True
+        self, username: str = None, password: str = None, announce: bool = True
     ):
         """
         Connects to the STOMP server using the provided username and password.
@@ -239,7 +236,9 @@ class Pigeon:
                 except (OSError, stomp.exception.ConnectFailedException) as e:
                     error = e
             if _timeout is not None and time.time() - start >= _timeout:
-                exception = TimeoutError(f"Could not send message on topic {topic} within {_timeout} seconds.")
+                exception = TimeoutError(
+                    f"Could not send message on topic {topic} within {_timeout} seconds."
+                )
                 if error is not None:
                     raise exception from error
                 else:
