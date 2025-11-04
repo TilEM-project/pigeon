@@ -82,12 +82,6 @@ def setup_zipkin_transport():
     return None
 
 
-def get_message_hash(msg_cls: Callable):
-    hash = hashlib.sha1()
-    hash.update(inspect.getsource(msg_cls).encode("utf8"))
-    return hash.hexdigest()
-
-
 def call_with_correct_args(func, *args, **kwargs):
     args = copy(args)
     kwargs = copy(kwargs)
