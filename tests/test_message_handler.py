@@ -22,7 +22,6 @@ def test_one_arg(pigeon_client):
     mock_stomp_message = MagicMock()
     mock_stomp_message.headers = {
         "subscription": "test.msg",
-        "hash": "abcd",
     }
 
     mock_message = MagicMock()
@@ -32,7 +31,7 @@ def test_one_arg(pigeon_client):
         assert msg == mock_message.deserialize()
 
     pigeon_client._connection = MagicMock()
-    pigeon_client._topics["test.msg"] = mock_message
+    pigeon_client.register_topic("test.msg", mock_message)
     pigeon_client.subscribe("test.msg", callback, False)
 
     pigeon_client._handle_message(mock_stomp_message)
@@ -42,7 +41,6 @@ def test_two_args(pigeon_client):
     mock_stomp_message = MagicMock()
     mock_stomp_message.headers = {
         "subscription": "test.msg",
-        "hash": "abcde",
     }
 
     mock_message = MagicMock()
@@ -53,7 +51,7 @@ def test_two_args(pigeon_client):
         assert topic == "test.msg"
 
     pigeon_client._connection = MagicMock()
-    pigeon_client._topics["test.msg"] = mock_message
+    pigeon_client.register_topic("test.msg", mock_message)
     pigeon_client.subscribe("test.msg", callback, False)
 
     pigeon_client._handle_message(mock_stomp_message)
@@ -63,7 +61,6 @@ def test_three_args(pigeon_client):
     mock_stomp_message = MagicMock()
     mock_stomp_message.headers = {
         "subscription": "test.msg",
-        "hash": "123abc",
     }
 
     mock_message = MagicMock()
@@ -75,7 +72,7 @@ def test_three_args(pigeon_client):
         assert headers == mock_stomp_message.headers
 
     pigeon_client._connection = MagicMock()
-    pigeon_client._topics["test.msg"] = mock_message
+    pigeon_client.register_topic("test.msg", mock_message)
     pigeon_client.subscribe("test.msg", callback, False)
 
     pigeon_client._handle_message(mock_stomp_message)
@@ -85,7 +82,6 @@ def test_var_args(pigeon_client):
     mock_stomp_message = MagicMock()
     mock_stomp_message.headers = {
         "subscription": "test.msg",
-        "hash": "xyz987",
     }
 
     mock_message = MagicMock()
@@ -98,7 +94,7 @@ def test_var_args(pigeon_client):
         assert args[2] == mock_stomp_message.headers
 
     pigeon_client._connection = MagicMock()
-    pigeon_client._topics["test.msg"] = mock_message
+    pigeon_client.register_topic("test.msg", mock_message)
     pigeon_client.subscribe("test.msg", callback, False)
 
     pigeon_client._handle_message(mock_stomp_message)
@@ -136,7 +132,7 @@ def test_validation_error(pigeon_client):
 def test_no_callback(pigeon_client):
     mock_message = create_mock_message(subscription="test")
 
-    pigeon_client._topics["test"] = MagicMock()
+    pigeon_client.register_topic("test", MagicMock())
     pigeon_client._handle_message(mock_message)
 
     pigeon_client._logger.warning.assert_called_with(
@@ -148,7 +144,7 @@ def test_bad_signature(pigeon_client):
     mock_message = create_mock_message(subscription="test")
     callback = lambda a, b, c, d: None
 
-    pigeon_client._topics["test"] = MagicMock()
+    pigeon_client.register_topic("test", MagicMock())
     pigeon_client.subscribe("test", callback, False)
     pigeon_client._handle_message(mock_message)
 
@@ -160,7 +156,7 @@ def test_bad_signature(pigeon_client):
 def test_callback_exception(pigeon_client):
     mock_message = create_mock_message(subscription="test")
 
-    pigeon_client._topics["test"] = MagicMock()
+    pigeon_client.register_topic("test", MagicMock())
     pigeon_client.subscribe(
         "test", MagicMock(side_effect=RecursionError("This is a test error.")), False
     )
