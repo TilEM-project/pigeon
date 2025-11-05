@@ -8,8 +8,12 @@ import os
 from logging_loki import LokiQueueHandler
 from multiprocessing import Queue
 from py_zipkin.transport import SimpleHTTPTransport
+from importlib.metadata import packages_distributions, version
 
 from .exceptions import SignatureException
+
+
+DISTRIBUTIONS = {module: packages[0] for module, packages in packages_distributions().items()}
 
 
 def setup_logging(logger_name: str = None, log_level: int = logging.INFO):
@@ -112,3 +116,7 @@ def call_with_correct_args(func, *args, **kwargs):
                 del kwargs[key]
 
     return func(*args, **kwargs)
+
+
+def get_version(msg_class):
+    return DISTRIBUTIONS.get(msg_class.__module__.split(".")[0], "[unknown]")

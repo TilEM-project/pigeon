@@ -14,7 +14,7 @@ from stomp.utils import Frame
 
 from . import messages
 from . import exceptions
-from .utils import call_with_correct_args, setup_zipkin_transport
+from .utils import call_with_correct_args, setup_zipkin_transport, get_version
 from threading import Thread
 
 
@@ -78,6 +78,7 @@ class Pigeon:
         self._username = None
         self._password = None
         self._topics = {}
+        self._topic_versions = {}
         if load_topics:
             self._load_topics()
         self._callbacks: Dict[str, Callable] = {}
@@ -128,6 +129,7 @@ class Pigeon:
             msg_class: The Pydantic model definition of the message.
         """
         self._topics[topic] = msg_class
+        self._topic_versions[topic] = get_version(msg_class)
 
     def register_topics(self, topics: Dict[str, Callable]):
         """Register a number of message definitions for multiple topics.
@@ -211,6 +213,7 @@ class Pigeon:
             hostname=self._hostname,
             pid=self._pid,
             sent_at=get_str_time_ms(),
+            version=self._topic_versions[topic],
         )
         if self._send_zipkin_headers:
             headers.update(create_http_headers_for_new_span())
@@ -262,8 +265,9 @@ class Pigeon:
         try:
             message_data = self._topics[topic].deserialize(message_frame.body)
         except ValidationError as e:
+            version = message_frame.headers.get('version', '[undefined]')
             self._logger.warning(
-                f"Failed to deserialize message on topic '{topic}' with error:\n{e}"
+                f"Failed to deserialize message on topic '{topic}' due to error:\n{e}Installed message version is {self._topic_versions[topic]} and received message version is {version}"
             )
             return
         callback = self._callbacks.get(topic)

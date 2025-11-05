@@ -103,7 +103,7 @@ def test_send(pigeon_client, topic, data, expected_serialized_data):
         "service": "test",
         "hostname": pigeon_client._hostname,
         "pid": pigeon_client._pid,
-        "hash": pigeon_client._hashes["topic1"],
+        "version": pigeon_client._topic_versions[topic],
         "sent_at": "1",
     }
     # Arrange
