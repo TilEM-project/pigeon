@@ -242,7 +242,7 @@ class Pigeon:
             time.sleep(0.2)
 
     def _ensure_topic_exists(self, topic: str):
-        if topic not in self._topics:
+        if topic not in self._topics or topic not in self._topic_versions:
             raise exceptions.NoSuchTopicException(f"Topic {topic} not defined.")
 
     def _handle_reconnect(self):
