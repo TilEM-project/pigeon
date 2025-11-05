@@ -19,6 +19,7 @@ from .utils import (
     call_with_correct_args,
     setup_zipkin_transport,
 )
+from threading import Thread
 
 
 def get_str_time_ms():
@@ -49,6 +50,7 @@ class Pigeon:
         load_topics: bool = True,
         create_zipkin_spans: bool = True,
         send_zipkin_headers: bool = True,
+        spawn_threads: bool = False,
     ):
         """
         Args:
@@ -62,9 +64,11 @@ class Pigeon:
             create_zipkin_spans: If true, and required environment variables are present,
                 configure Zipkin transport and create new spans for every received message.
             send_zipkin_headers: If true, attempt to send Zipkin span propogation headers.
+            spawn_threads: If true, create a new thread for every message received.
 
         """
         self._service = service
+        self._spawn_threads = spawn_threads
         self._connection = stomp.Connection12([(host, port)], heartbeats=(10000, 10000))
         self._topics = {}
         self._hashes = {}
@@ -224,14 +228,18 @@ class Pigeon:
                 f"No callback for message received on topic '{topic}'."
             )
             return
+        if not self._spawn_threads:
+            self._run_callback(callback, message_data, topic, message_frame.headers)
+        else:
+            Thread(
+                target=self._run_callback,
+                args=(callback, message_data, topic, message_frame.headers),
+            ).start()
+
+    def _run_callback(self, callback, message_data, topic, headers):
         try:
-            self.with_zipkin_span_from_headers(
-                message_frame.headers,
-                call_with_correct_args,
-                callback,
-                message_data,
-                topic,
-                message_frame.headers,
+            self._with_zipkin_span_from_headers(
+                headers, call_with_correct_args, callback, message_data, topic, headers
             )
         except exceptions.SignatureException as e:
             self._logger.warning(
@@ -242,7 +250,7 @@ class Pigeon:
                 f"Callback for topic '{topic}' failed with error:", exc_info=True
             )
 
-    def with_zipkin_span_from_headers(self, headers, function, *args, **kwargs):
+    def _with_zipkin_span_from_headers(self, headers, function, *args, **kwargs):
         if (
             self._zipkin_transport is None
             or (zipkin_attrs := extract_zipkin_attrs_from_headers(headers)) is None
