@@ -54,6 +54,8 @@ class Listener:
             return {key: cls._to_dict(val) for key, val in data.items()}
         if isinstance(data, (list, tuple)):
             return [cls._to_dict(val) for val in data]
+        if isinstance(data, datetime):
+            return data.isoformat()
         return data
 
     def callback(self, msg, topic, headers):
