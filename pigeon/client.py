@@ -265,7 +265,7 @@ class Pigeon:
         try:
             message_data = self._topics[topic].deserialize(message_frame.body)
         except ValidationError as e:
-            version = message_frame.headers.get('version', '[undefined]')
+            version = message_frame.headers.get("version", "[undefined]")
             self._logger.warning(
                 f"Failed to deserialize message on topic '{topic}' due to error:\n{e}Installed message version is {self._topic_versions[topic]} and received message version is {version}"
             )
