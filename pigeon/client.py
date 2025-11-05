@@ -51,6 +51,8 @@ class Pigeon:
         create_zipkin_spans: bool = True,
         send_zipkin_headers: bool = True,
         spawn_threads: bool = False,
+        connection_timeout: float = 10,
+        send_timeout: float = 0,
     ):
         """
         Args:
@@ -65,18 +67,27 @@ class Pigeon:
                 configure Zipkin transport and create new spans for every received message.
             send_zipkin_headers: If true, attempt to send Zipkin span propogation headers.
             spawn_threads: If true, create a new thread for every message received.
+            connection_timeout: The number of seconds to attempt to connect to the broker.
+                Set to None to attempt to connect indefinitely.
+            send_timeout: The number of seconds to attempt to send a message, or None to
+                try indefinitely.
 
         """
         self._service = service
         self._spawn_threads = spawn_threads
         self._connection = stomp.Connection12([(host, port)], heartbeats=(10000, 10000))
+        self._connected = False
+        self._connection_timeout = connection_timeout
+        self._send_timeout = send_timeout
+        self._username = None
+        self._password = None
         self._topics = {}
         self._hashes = {}
         if load_topics:
             self._load_topics()
         self._callbacks: Dict[str, Callable] = {}
         self._connection.set_listener(
-            "listener", TEMCommsListener(self._handle_message)
+            "listener", PigeonListener(self._handle_message, self._handle_reconnect)
         )
         self._logger = logger if logger is not None else logging.getLogger(__name__)
 
@@ -134,10 +145,7 @@ class Pigeon:
             self.register_topic(*topic)
 
     def connect(
-        self,
-        username: str = None,
-        password: str = None,
-        retry_limit: int = 8,
+        self, username: str = None, password: str = None, announce: bool = True
     ):
         """
         Connects to the STOMP server using the provided username and password.
@@ -145,45 +153,64 @@ class Pigeon:
         Args:
             username (str, optional): The username to authenticate with. Defaults to None.
             password (str, optional): The password to authenticate with. Defaults to None.
-            retry_limit (int, optional): Number of times to attempt connection
+            announce (bool, optional): If true will send a message through the broker that
+                it has connected.
 
         Raises:
             stomp.exception.ConnectFailedException: If the connection to the server fails.
         """
-        retries = 0
-        while retries < retry_limit:
+        self._username = username if username is not None else self._username
+        self._password = password if password is not None else self._password
+
+        start = time.time()
+        while True:
             try:
                 self._connection.connect(
-                    username=username, passcode=password, wait=True
+                    username=self._username, passcode=self._password, wait=True
                 )
-                self._logger.info("Connected to STOMP server.")
                 break
             except stomp.exception.ConnectFailedException as e:
-                self._logger.error(f"Connection failed: {e}. Attempting to reconnect.")
-                retries += 1
-                time.sleep(1)
-                if retries == retry_limit:
+                if (
+                    self._connection_timeout is None
+                    or time.time() - start < self._connection_timeout
+                ):
+                    self._logger.error(
+                        f"Connection failed: {e}. Attempting to reconnect."
+                    )
+                    time.sleep(1)
+                else:
                     raise stomp.exception.ConnectFailedException(
                         f"Could not connect to server: {e}"
                     ) from e
 
-        self.subscribe("&_request_state", self._update_state)
-        self._announce()
+        self._logger.info("Connected to STOMP server.")
 
-    def send(self, topic: str, **data):
+        self._connected = True
+
+        if "&_request_state" not in self._callbacks:
+            self.subscribe("&_request_state", self._update_state)
+
+        if announce:
+            self._announce()
+
+    def send(self, topic: str, timeout=..., **data):
         """
         Sends data to the specified topic.
 
         Args:
             topic (str): The topic to send the data to.
+            timeout (float, None): The length of time to attempt to send the
+                message, or None to try indefinitely. If set to ..., the default,
+                the send_timeout value from the client constructor will be used.
             **data: Keyword arguments representing the data to be sent.
 
         Raises:
             exceptions.NoSuchTopicException: If the specified topic is not defined.
+            TimeoutError: If the message was not able to be sent within the required
+                timeframe.
         """
         self._ensure_topic_exists(topic)
         message = self._topics[topic](**data)
-
         headers = dict(
             source=self._name,
             service=self._service,
@@ -194,14 +221,43 @@ class Pigeon:
         )
         if self._send_zipkin_headers:
             headers.update(create_http_headers_for_new_span())
-        self._connection.send(
-            destination=topic, body=message.serialize(), headers=headers
-        )
-        self._logger.debug(f"Sent data to {topic}: {message}")
+        _timeout = self._send_timeout if timeout is ... else timeout
+        assert isinstance(_timeout, (int, float, type(None)))
+        start = time.time()
+        while True:
+            error = None
+            if self._connected:
+                try:
+                    self._connection.send(
+                        destination=topic, body=message.serialize(), headers=headers
+                    )
+                    self._logger.debug(f"Sent data to {topic}: {message}")
+                    return
+                except (OSError, stomp.exception.ConnectFailedException) as e:
+                    error = e
+            if _timeout is not None and time.time() - start >= _timeout:
+                exception = TimeoutError(
+                    f"Could not send message on topic {topic} within {_timeout} seconds."
+                )
+                if error is not None:
+                    raise exception from error
+                else:
+                    raise exception
+            time.sleep(0.2)
 
     def _ensure_topic_exists(self, topic: str):
         if topic not in self._topics or topic not in self._hashes:
             raise exceptions.NoSuchTopicException(f"Topic {topic} not defined.")
+
+    def _handle_reconnect(self):
+        self._connected = False
+        self._logger.warning("Disconnected from broker. Attempting to reconnect...")
+        old_subscriptions = dict(self._callbacks)
+        self._callbacks = {}
+        time.sleep(1)
+        self.connect(announce=False)
+        for topic, callback in old_subscriptions.items():
+            self.subscribe(topic, callback, send_update=False)
 
     def _handle_message(self, message_frame: Frame):
         topic = message_frame.headers["subscription"]
@@ -275,6 +331,8 @@ class Pigeon:
                 messages. It may accept up to three arguments. In order, the
                 arguments are, the received message, the topic the message was
                 received on, and the message headers.
+            send_update (bool, optional): Send a notification of the subscription
+                through the broker.
 
         Raises:
             NoSuchTopicException: If the specified topic is not defined.
@@ -328,10 +386,14 @@ class Pigeon:
             self._logger.info("Disconnected from STOMP server.")
 
 
-class TEMCommsListener(stomp.ConnectionListener):
-    def __init__(self, callback: Callable):
-        self.callback = callback
+class PigeonListener(stomp.ConnectionListener):
+    def __init__(self, message_handler: Callable, disconnect_handler: Callable):
+        self.message_handler = message_handler
+        self.disconnect_handler = disconnect_handler
 
     def on_message(self, frame):
         frame.headers["received_at"] = get_str_time_ms()
-        self.callback(frame)
+        self.message_handler(frame)
+
+    def on_disconnected(self):
+        self.disconnect_handler()

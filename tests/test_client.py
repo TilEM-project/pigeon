@@ -5,6 +5,8 @@ from pigeon.client import Pigeon
 from pigeon.exceptions import NoSuchTopicException
 from pigeon import BaseMessage
 from pigeon.messages import core_topics
+import time
+from math import floor
 
 
 class MockMessage(BaseMessage):
@@ -21,11 +23,13 @@ def pigeon_client():
             port=61613,
             logger=mock_logging.Logger(),
             load_topics=False,
+            connection_timeout=0.5,
         )
         client.register_topics(topics)
         yield client
 
 
+@pytest.mark.parametrize("announce", [True, False])
 @pytest.mark.parametrize(
     "username, password, expected_log",
     [
@@ -34,14 +38,16 @@ def pigeon_client():
     ],
     ids=["no-auth", "with-auth"],
 )
-def test_connect(pigeon_client, username, password, expected_log):
+def test_connect(pigeon_client, username, password, expected_log, announce):
     # Arrange
     pigeon_client._connection.connect = MagicMock()
     pigeon_client.subscribe = MagicMock()
     pigeon_client._announce = MagicMock()
 
+    assert not pigeon_client._connected
+
     # Act
-    pigeon_client.connect(username=username, password=password)
+    pigeon_client.connect(username=username, password=password, announce=announce)
 
     # Assert
     pigeon_client._connection.connect.assert_called_with(
@@ -51,7 +57,12 @@ def test_connect(pigeon_client, username, password, expected_log):
     pigeon_client.subscribe.assert_called_with(
         "&_request_state", pigeon_client._update_state
     )
-    pigeon_client._announce.assert_called()
+    if announce:
+        pigeon_client._announce.assert_called()
+    else:
+        pigeon_client._announce.assert_not_called()
+
+    assert pigeon_client._connected
 
 
 @pytest.mark.parametrize(
@@ -67,19 +78,16 @@ def test_connect_failure(pigeon_client, username, password):
     pigeon_client._connection.connect = MagicMock(
         side_effect=ConnectFailedException("Connection failed")
     )
-    retry_limit = 1
     pigeon_client._logger.error = MagicMock()
 
     # Act & Assert
     with pytest.raises(
         ConnectFailedException, match="Could not connect to server: Connection failed"
     ):
-        pigeon_client.connect(
-            username=username, password=password, retry_limit=retry_limit
-        )
+        pigeon_client.connect(username=username, password=password)
 
     # Assert the logger was called the same number of times as the retry limit
-    assert pigeon_client._logger.error.call_count == retry_limit
+    assert pigeon_client._logger.error.call_count == 1
 
 
 @pytest.mark.parametrize(
@@ -102,6 +110,7 @@ def test_send(pigeon_client, topic, data, expected_serialized_data):
     with patch("pigeon.client.time.time_ns", lambda: 1e6):
         pigeon_client._topics[topic] = MockMessage
         pigeon_client._connection.send = MagicMock()
+        pigeon_client._connected = True
 
         # Act
         pigeon_client.send(topic, **data)
@@ -123,11 +132,43 @@ def test_send(pigeon_client, topic, data, expected_serialized_data):
     ids=["send-data-no-such-topic"],
 )
 def test_send_no_such_topic(pigeon_client, topic, data):
+    pigeon_client._connected = True
     # Act & Assert
     with pytest.raises(NoSuchTopicException, match=f"Topic {topic} not defined."):
         pigeon_client.send(topic, **data)
 
 
+@pytest.mark.timeout(2)
+@pytest.mark.parametrize(
+    "class_timeout, method_timeout, timeout",
+    [(0, ..., 0), (0.5, ..., 0.5), (0, 0.3, 0.3), (None, 0.7, 0.7)],
+)
+@pytest.mark.parametrize("reason", ["connected", OSError, ConnectFailedException])
+def test_send_timeout(
+    mocker, pigeon_client, class_timeout, method_timeout, timeout, reason
+):
+    client = Pigeon(
+        "test",
+        host="localhost",
+        port=61613,
+        logger=mocker.MagicMock(),
+        load_topics=False,
+        connection_timeout=0.5,
+        send_timeout=class_timeout,
+    )
+    client._connected = reason != "connected"
+    client._ensure_topic_exists = mocker.MagicMock()
+    client._connection = mocker.MagicMock()
+    client.register_topic("some_topic", MockMessage)
+    if not isinstance(reason, str) and issubclass(reason, Exception):
+        client._connection.send.side_effect = reason
+    start = time.time()
+    with pytest.raises(TimeoutError):
+        client.send("some_topic", timeout=method_timeout, field1="data")
+    assert abs(time.time() - start - timeout) < 0.2
+
+
+@pytest.mark.parametrize("update_state", [True, False])
 @pytest.mark.parametrize(
     "topic, callback_name, expected_log",
     [
@@ -135,7 +176,7 @@ def test_send_no_such_topic(pigeon_client, topic, data):
     ],
     ids=["subscribe-new-topic"],
 )
-def test_subscribe(pigeon_client, topic, callback_name, expected_log):
+def test_subscribe(pigeon_client, topic, callback_name, expected_log, update_state):
     # Arrange
     pigeon_client._topics[topic] = MockMessage
     callback = MagicMock(__name__=callback_name)
@@ -143,13 +184,16 @@ def test_subscribe(pigeon_client, topic, callback_name, expected_log):
     pigeon_client._update_state = MagicMock()
 
     # Act
-    pigeon_client.subscribe(topic, callback)
+    pigeon_client.subscribe(topic, callback, update_state)
 
     # Assert
     assert pigeon_client._callbacks[topic] == callback
     pigeon_client._connection.subscribe.assert_called_with(destination=topic, id=topic)
     pigeon_client._logger.info.assert_called_with(expected_log.format(callback))
-    pigeon_client._update_state.assert_called()
+    if update_state:
+        pigeon_client._update_state.assert_called()
+    else:
+        pigeon_client._update_state.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -171,6 +215,7 @@ def test_subscribe_no_such_topic(pigeon_client, topic):
 def test_subscribe_all(pigeon_client, mocker):
     pigeon_client._connection = mocker.MagicMock()
     pigeon_client.subscribe = mocker.MagicMock()
+    pigeon_client._update_state = mocker.MagicMock()
 
     callback = mocker.MagicMock()
 
@@ -179,11 +224,13 @@ def test_subscribe_all(pigeon_client, mocker):
     assert len(pigeon_client.subscribe.mock_calls) == 2
     pigeon_client.subscribe.assert_any_call("topic1", callback, send_update=False)
     pigeon_client.subscribe.assert_any_call("topic2", callback, send_update=False)
+    pigeon_client._update_state.assert_called_once()
 
 
 def test_subscribe_all_with_core(pigeon_client, mocker):
     pigeon_client._connection = mocker.MagicMock()
     pigeon_client.subscribe = mocker.MagicMock()
+    pigeon_client._update_state = mocker.MagicMock()
 
     callback = mocker.MagicMock()
 
@@ -198,19 +245,51 @@ def test_subscribe_all_with_core(pigeon_client, mocker):
     pigeon_client.subscribe.assert_any_call(
         "&_update_state", callback, send_update=False
     )
+    pigeon_client._update_state.assert_called_once()
 
 
 def test_subscribe_all_no_topics(pigeon_client, mocker):
     pigeon_client._connection = mocker.MagicMock()
     pigeon_client.subscribe = mocker.MagicMock()
+    pigeon_client._connected = True
 
     pigeon_client._topics = core_topics
 
     callback = mocker.MagicMock()
 
     pigeon_client.subscribe_all(callback)
-
     pigeon_client._logger.warning.assert_called_once()
+
+
+def test_handle_reconnect(pigeon_client, mocker):
+    pigeon_client._connected = True
+
+    pigeon_client.register_topic("topic3", MockMessage)
+    pigeon_client.register_topic("topic4", MockMessage)
+
+    topic2_cb = mocker.MagicMock()
+    topic3_cb = mocker.MagicMock()
+
+    pigeon_client.connect = mocker.MagicMock()
+    pigeon_client._connection = mocker.MagicMock()
+
+    pigeon_client.subscribe("topic2", topic2_cb)
+    pigeon_client.subscribe("topic3", topic3_cb)
+
+    pigeon_client.subscribe = mocker.MagicMock()
+
+    pigeon_client._handle_reconnect()
+
+    assert not pigeon_client._connected
+    assert pigeon_client._callbacks == {}
+    assert len(pigeon_client.subscribe.mock_calls) == 2
+
+    pigeon_client.connect.assert_called_once_with(announce=False)
+    pigeon_client.subscribe.assert_any_call("topic2", topic2_cb, send_update=False)
+    pigeon_client.subscribe.assert_any_call("topic3", topic3_cb, send_update=False)
+    pigeon_client._logger.warning.assert_called_once_with(
+        "Disconnected from broker. Attempting to reconnect..."
+    )
 
 
 @pytest.mark.parametrize(
