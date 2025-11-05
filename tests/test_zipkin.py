@@ -26,7 +26,7 @@ class Msg(BaseMessage):
                 "service": "the service",
                 "hostname": "hosty mchostface",
                 "pid": 1,
-                "hash": "abc123",
+                "version": "[unknown]",
                 "sent_at": "0",
             },
         ),
@@ -44,7 +44,7 @@ class Msg(BaseMessage):
                 "service": "the service",
                 "hostname": "hosty mchostface",
                 "pid": 1,
-                "hash": "abc123",
+                "version": "[unknown]",
                 "sent_at": "0",
                 "X-B3-TraceId": "trace_id",
                 "X-B3-SpanId": "span_id",
@@ -61,7 +61,7 @@ class Msg(BaseMessage):
                 "service": "the service",
                 "hostname": "hosty mchostface",
                 "pid": 1,
-                "hash": "abc123",
+                "version": "[unknown]",
                 "sent_at": "0",
             },
         ),
@@ -82,7 +82,6 @@ def test_send_zipkin(mocker, use_zipkin, zipkin_headers, message_headers):
     client._connected = True
 
     client.register_topic("test", Msg)
-    client._hashes["test"] = "abc123"
 
     client.send("test", value="something")
 
@@ -166,7 +165,6 @@ def test_receive_zipkin(mocker, use_zipkin, message_headers, span_created):
     client = Pigeon("the service", create_zipkin_spans=use_zipkin, load_topics=False)
 
     client.register_topic("test", Msg)
-    client._hashes["test"] = "abc123"
 
     callback = mocker.MagicMock()
     client.subscribe("test", callback, False)

@@ -14,11 +14,7 @@ from stomp.utils import Frame
 
 from . import messages
 from . import exceptions
-from .utils import (
-    get_message_hash,
-    call_with_correct_args,
-    setup_zipkin_transport,
-)
+from .utils import call_with_correct_args, setup_zipkin_transport, get_version
 from threading import Thread
 
 
@@ -82,7 +78,7 @@ class Pigeon:
         self._username = None
         self._password = None
         self._topics = {}
-        self._hashes = {}
+        self._topic_versions = {}
         if load_topics:
             self._load_topics()
         self._callbacks: Dict[str, Callable] = {}
@@ -133,7 +129,7 @@ class Pigeon:
             msg_class: The Pydantic model definition of the message.
         """
         self._topics[topic] = msg_class
-        self._hashes[topic] = get_message_hash(msg_class)
+        self._topic_versions[topic] = get_version(msg_class)
 
     def register_topics(self, topics: Dict[str, Callable]):
         """Register a number of message definitions for multiple topics.
@@ -216,8 +212,8 @@ class Pigeon:
             service=self._service,
             hostname=self._hostname,
             pid=self._pid,
-            hash=self._hashes[topic],
             sent_at=get_str_time_ms(),
+            version=self._topic_versions[topic],
         )
         if self._send_zipkin_headers:
             headers.update(create_http_headers_for_new_span())
@@ -246,7 +242,7 @@ class Pigeon:
             time.sleep(0.2)
 
     def _ensure_topic_exists(self, topic: str):
-        if topic not in self._topics or topic not in self._hashes:
+        if topic not in self._topics or topic not in self._topic_versions:
             raise exceptions.NoSuchTopicException(f"Topic {topic} not defined.")
 
     def _handle_reconnect(self):
@@ -261,21 +257,17 @@ class Pigeon:
 
     def _handle_message(self, message_frame: Frame):
         topic = message_frame.headers["subscription"]
-        if topic not in self._topics or topic not in self._hashes:
+        if topic not in self._topics:
             self._logger.warning(
                 f"Received a message on an unregistered topic: {topic}"
-            )
-            return
-        if message_frame.headers.get("hash") != self._hashes.get(topic):
-            self._logger.warning(
-                f"Received a message on topic '{topic}' with an incorrect hash: {message_frame.headers.get('hash')}. Expected: {self._hashes.get(topic)}"
             )
             return
         try:
             message_data = self._topics[topic].deserialize(message_frame.body)
         except ValidationError as e:
+            version = message_frame.headers.get("version", "[undefined]")
             self._logger.warning(
-                f"Failed to deserialize message on topic '{topic}' with error:\n{e}"
+                f"Failed to deserialize message on topic '{topic}' due to error:\n{e}Installed message version is {self._topic_versions[topic]} and received message version is {version}"
             )
             return
         callback = self._callbacks.get(topic)
