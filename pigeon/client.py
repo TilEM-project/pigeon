@@ -4,8 +4,6 @@ import socket
 import time
 from importlib.metadata import entry_points
 from typing import Callable, Dict
-from py_zipkin.zipkin import zipkin_span, create_http_headers_for_new_span
-from py_zipkin.request_helpers import extract_zipkin_attrs_from_headers
 
 import stomp
 import stomp.exception
@@ -14,7 +12,7 @@ from stomp.utils import Frame
 
 from . import messages
 from . import exceptions
-from .utils import call_with_correct_args, setup_zipkin_transport, get_version
+from .utils import call_with_correct_args, get_version
 from threading import Thread
 
 
@@ -44,8 +42,6 @@ class Pigeon:
         port: int = 61616,
         logger: logging.Logger = None,
         load_topics: bool = True,
-        create_zipkin_spans: bool = True,
-        send_zipkin_headers: bool = True,
         spawn_threads: bool = False,
         connection_timeout: float = 10,
         send_timeout: float = 0,
@@ -59,9 +55,6 @@ class Pigeon:
             logger: A Python logger to use. If not provided, a logger will be
                 crated.
             load_topics: If true, load topics from Python entry points.
-            create_zipkin_spans: If true, and required environment variables are present,
-                configure Zipkin transport and create new spans for every received message.
-            send_zipkin_headers: If true, attempt to send Zipkin span propogation headers.
             spawn_threads: If true, create a new thread for every message received.
             connection_timeout: The number of seconds to attempt to connect to the broker.
                 Set to None to attempt to connect indefinitely.
@@ -90,11 +83,6 @@ class Pigeon:
         self._pid = os.getpid()
         self._hostname = socket.gethostname().split(".")[0]
         self._name = f"{self._service}_{self._pid}_{self._hostname}"
-
-        self._zipkin_transport = None
-        if create_zipkin_spans:
-            self._zipkin_transport = setup_zipkin_transport()
-        self._send_zipkin_headers = send_zipkin_headers
 
     def _load_topics(self):
         for entrypoint in entry_points(group="pigeon.msgs"):
@@ -184,8 +172,6 @@ class Pigeon:
             sent_at=get_str_time_ms(),
             version=self._topic_versions[topic],
         )
-        if self._send_zipkin_headers:
-            headers.update(create_http_headers_for_new_span())
         _timeout = self._send_timeout if timeout is ... else timeout
         assert isinstance(_timeout, (int, float, type(None)))
         start = time.time()
@@ -255,9 +241,7 @@ class Pigeon:
 
     def _run_callback(self, callback, message_data, topic, headers):
         try:
-            self._with_zipkin_span_from_headers(
-                headers, call_with_correct_args, callback, message_data, topic, headers
-            )
+            call_with_correct_args(callback, message_data, topic, headers)
         except exceptions.SignatureException as e:
             self._logger.warning(
                 f"Callback signature for topic '{topic}' not acceptable. Call failed with error:\n{e}"
@@ -266,21 +250,6 @@ class Pigeon:
             self._logger.warning(
                 f"Callback for topic '{topic}' failed with error:", exc_info=True
             )
-
-    def _with_zipkin_span_from_headers(self, headers, function, *args, **kwargs):
-        if (
-            self._zipkin_transport is None
-            or (zipkin_attrs := extract_zipkin_attrs_from_headers(headers)) is None
-        ):
-            return function(*args, **kwargs)
-        else:
-            with zipkin_span(
-                service_name=self._service,
-                span_name=f"handle {headers['subscription']}",
-                transport_handler=self._zipkin_transport,
-                zipkin_attrs=zipkin_attrs,
-            ):
-                return function(*args, **kwargs)
 
     def subscribe(self, topic: str, callback: Callable):
         """
