@@ -162,9 +162,28 @@ class Pigeon:
             TimeoutError: If the message was not able to be sent within the required
                 timeframe.
         """
+        self._send(topic, data, timeout=timeout)
+
+    def _send(self, topic, data, timeout=..., headers={}):
+        """
+        Sends data to the specified topic.
+
+        Args:
+            topic (str): The topic to send the data to.
+            data: The data to send.
+            timeout (float, None): The length of time to attempt to send the
+                message, or None to try indefinitely. If set to ..., the default,
+                the send_timeout value from the client constructor will be used.
+            headers: Extra headers to send along with the data.
+
+        Raises:
+            exceptions.NoSuchTopicException: If the specified topic is not defined.
+            TimeoutError: If the message was not able to be sent within the required
+                timeframe.
+        """
         self._ensure_topic_exists(topic)
         message = self._topics[topic](**data)
-        headers = dict(
+        _headers = dict(
             source=self._name,
             service=self._service,
             hostname=self._hostname,
@@ -172,6 +191,7 @@ class Pigeon:
             sent_at=get_str_time_ms(),
             version=self._topic_versions[topic],
         )
+        _headers.update(headers)
         _timeout = self._send_timeout if timeout is ... else timeout
         assert isinstance(_timeout, (int, float, type(None)))
         start = time.time()
@@ -180,7 +200,7 @@ class Pigeon:
             if self._connected:
                 try:
                     self._connection.send(
-                        destination=topic, body=message.serialize(), headers=headers
+                        destination=topic, body=message.serialize(), headers=_headers
                     )
                     self._logger.debug(f"Sent data to {topic}: {message}")
                     return

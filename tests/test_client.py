@@ -115,6 +115,31 @@ def test_send(pigeon_client, topic, data, expected_serialized_data):
         )
 
 
+def test_send_headers(pigeon_client):
+    pigeon_client.register_topic("test", MockMessage)
+    pigeon_client._connection.send = MagicMock()
+    pigeon_client._connected = True
+
+    with patch("pigeon.client.time.time_ns", lambda: 1e6):
+        pigeon_client._send("test", {"field1": "datas"}, headers={"test1": "this", "test2": "that"})
+
+    pigeon_client._connection.send.assert_called_with(
+        destination="test",
+        body='{"field1":"datas"}',
+        headers={
+            "source": pigeon_client._name,
+            "service": "test",
+            "hostname": pigeon_client._hostname,
+            "pid": pigeon_client._pid,
+            "version": pigeon_client._topic_versions["test"],
+            "sent_at": "1",
+            "test1": "this",
+            "test2": "that",
+        },
+    )
+
+
+
 @pytest.mark.parametrize(
     "topic, data",
     [
