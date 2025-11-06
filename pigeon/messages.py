@@ -50,29 +50,3 @@ class BaseMessage(pydantic.BaseModel):
         return ", ".join(
             [f"{prop}={self._shorten(data)}" for prop, data in self.__dict__.items()]
         )
-
-
-class AnnounceConnection(BaseMessage):
-    name: str
-    service: str
-    pid: int
-    hostname: str
-    connected: bool
-
-
-class RequestState(BaseMessage): ...
-
-
-class UpdateState(BaseMessage):
-    name: str
-    service: str
-    pid: int
-    hostname: str
-    subscribed_to: list[str]
-
-
-core_topics = {
-    "&_announce_connection": AnnounceConnection,
-    "&_request_state": RequestState,
-    "&_update_state": UpdateState,
-}

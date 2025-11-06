@@ -167,7 +167,7 @@ def test_receive_zipkin(mocker, use_zipkin, message_headers, span_created):
     client.register_topic("test", Msg)
 
     callback = mocker.MagicMock()
-    client.subscribe("test", callback, False)
+    client.subscribe("test", callback)
 
     msg = Frame("", body='{"value":"something"}', headers=message_headers)
 

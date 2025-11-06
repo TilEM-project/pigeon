@@ -90,32 +90,11 @@ class Pigeon:
         self._pid = os.getpid()
         self._hostname = socket.gethostname().split(".")[0]
         self._name = f"{self._service}_{self._pid}_{self._hostname}"
-        self.register_topics(messages.core_topics)
 
         self._zipkin_transport = None
         if create_zipkin_spans:
             self._zipkin_transport = setup_zipkin_transport()
         self._send_zipkin_headers = send_zipkin_headers
-
-    def _announce(self, connected=True):
-        self.send(
-            "&_announce_connection",
-            name=self._name,
-            pid=self._pid,
-            hostname=self._hostname,
-            service=self._service,
-            connected=connected,
-        )
-
-    def _update_state(self):
-        self.send(
-            "&_update_state",
-            name=self._name,
-            pid=self._pid,
-            hostname=self._hostname,
-            service=self._service,
-            subscribed_to=list(self._callbacks.keys()),
-        )
 
     def _load_topics(self):
         for entrypoint in entry_points(group="pigeon.msgs"):
@@ -140,17 +119,13 @@ class Pigeon:
         for topic in topics.items():
             self.register_topic(*topic)
 
-    def connect(
-        self, username: str = None, password: str = None, announce: bool = True
-    ):
+    def connect(self, username: str = None, password: str = None):
         """
         Connects to the STOMP server using the provided username and password.
 
         Args:
             username (str, optional): The username to authenticate with. Defaults to None.
             password (str, optional): The password to authenticate with. Defaults to None.
-            announce (bool, optional): If true will send a message through the broker that
-                it has connected.
 
         Raises:
             stomp.exception.ConnectFailedException: If the connection to the server fails.
@@ -182,12 +157,6 @@ class Pigeon:
         self._logger.info("Connected to STOMP server.")
 
         self._connected = True
-
-        if "&_request_state" not in self._callbacks:
-            self.subscribe("&_request_state", self._update_state)
-
-        if announce:
-            self._announce()
 
     def send(self, topic: str, timeout=..., **data):
         """
@@ -251,9 +220,9 @@ class Pigeon:
         old_subscriptions = dict(self._callbacks)
         self._callbacks = {}
         time.sleep(1)
-        self.connect(announce=False)
+        self.connect()
         for topic, callback in old_subscriptions.items():
-            self.subscribe(topic, callback, send_update=False)
+            self.subscribe(topic, callback)
 
     def _handle_message(self, message_frame: Frame):
         topic = message_frame.headers["subscription"]
@@ -313,7 +282,7 @@ class Pigeon:
             ):
                 return function(*args, **kwargs)
 
-    def subscribe(self, topic: str, callback: Callable, send_update=True):
+    def subscribe(self, topic: str, callback: Callable):
         """
         Subscribes to a topic and associates a callback function to handle incoming messages.
 
@@ -323,8 +292,6 @@ class Pigeon:
                 messages. It may accept up to three arguments. In order, the
                 arguments are, the received message, the topic the message was
                 received on, and the message headers.
-            send_update (bool, optional): Send a notification of the subscription
-                through the broker.
 
         Raises:
             NoSuchTopicException: If the specified topic is not defined.
@@ -334,10 +301,8 @@ class Pigeon:
             self._connection.subscribe(destination=topic, id=topic)
         self._callbacks[topic] = callback
         self._logger.info(f"Subscribed to {topic} with {callback}.")
-        if send_update:
-            self._update_state()
 
-    def subscribe_all(self, callback: Callable, include_core=False):
+    def subscribe_all(self, callback: Callable):
         """Subscribes to all registered topics.
 
         Args:
@@ -346,19 +311,10 @@ class Pigeon:
             include_core (bool): If true, subscribe all will subscribe the client to core messages.
         """
 
-        # Additional logic here is to avoid subscribe_all changing behavior and always subscribing to core topics.
-        if (
-            len([topic for topic in self._topics if topic not in messages.core_topics])
-            == 0
-        ):
-            self._logger.warning("No non-system topics registered!")
+        if len(self._topics) == 0:
+            self._logger.warning("No topics registered!")
         for topic in self._topics:
-            if topic in messages.core_topics and not include_core:
-                continue
-            if topic == "&_request_state":
-                continue
-            self.subscribe(topic, callback, send_update=False)
-        self._update_state()
+            self.subscribe(topic, callback)
 
     def unsubscribe(self, topic: str):
         """Unsubscribes from a given topic.
@@ -373,7 +329,6 @@ class Pigeon:
     def disconnect(self):
         """Disconnect from the STOMP message broker."""
         if self._connection.is_connected():
-            self._announce(connected=False)
             self._connection.disconnect()
             self._logger.info("Disconnected from STOMP server.")
 

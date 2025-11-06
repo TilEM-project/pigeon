@@ -32,7 +32,7 @@ def test_one_arg(pigeon_client):
 
     pigeon_client._connection = MagicMock()
     pigeon_client.register_topic("test.msg", mock_message)
-    pigeon_client.subscribe("test.msg", callback, False)
+    pigeon_client.subscribe("test.msg", callback)
 
     pigeon_client._handle_message(mock_stomp_message)
 
@@ -52,7 +52,7 @@ def test_two_args(pigeon_client):
 
     pigeon_client._connection = MagicMock()
     pigeon_client.register_topic("test.msg", mock_message)
-    pigeon_client.subscribe("test.msg", callback, False)
+    pigeon_client.subscribe("test.msg", callback)
 
     pigeon_client._handle_message(mock_stomp_message)
 
@@ -73,7 +73,7 @@ def test_three_args(pigeon_client):
 
     pigeon_client._connection = MagicMock()
     pigeon_client.register_topic("test.msg", mock_message)
-    pigeon_client.subscribe("test.msg", callback, False)
+    pigeon_client.subscribe("test.msg", callback)
 
     pigeon_client._handle_message(mock_stomp_message)
 
@@ -95,7 +95,7 @@ def test_var_args(pigeon_client):
 
     pigeon_client._connection = MagicMock()
     pigeon_client.register_topic("test.msg", mock_message)
-    pigeon_client.subscribe("test.msg", callback, False)
+    pigeon_client.subscribe("test.msg", callback)
 
     pigeon_client._handle_message(mock_stomp_message)
 
@@ -145,7 +145,7 @@ def test_bad_signature(pigeon_client):
     callback = lambda a, b, c, d: None
 
     pigeon_client.register_topic("test", MagicMock())
-    pigeon_client.subscribe("test", callback, False)
+    pigeon_client.subscribe("test", callback)
     pigeon_client._handle_message(mock_message)
 
     pigeon_client._logger.warning.assert_called_with(
@@ -158,7 +158,8 @@ def test_callback_exception(pigeon_client):
 
     pigeon_client.register_topic("test", MagicMock())
     pigeon_client.subscribe(
-        "test", MagicMock(side_effect=RecursionError("This is a test error.")), False
+        "test",
+        MagicMock(side_effect=RecursionError("This is a test error.")),
     )
     pigeon_client._handle_message(mock_message)
 
