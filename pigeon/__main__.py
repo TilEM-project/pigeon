@@ -266,7 +266,7 @@ def main():
             listener = Listener(False, delay=True, quiet=True)
             connection.subscribe(args.topic, listener.callback)
 
-    if len(connection._callbacks) <= 1:
+    if len(connection._callbacks) == 0:
         console.print("No subscriptions, exiting...", style="red")
         exit(0)
 
