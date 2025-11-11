@@ -12,8 +12,8 @@ from importlib.metadata import packages_distributions, version
 from .exceptions import SignatureException
 
 
-DISTRIBUTIONS = {
-    module: packages[0] for module, packages in packages_distributions().items()
+VERSIONS = {
+    module: version(packages[0]) for module, packages in packages_distributions().items()
 }
 
 
@@ -109,4 +109,4 @@ def call_with_correct_args(func, *args, **kwargs):
 
 
 def get_version(msg_class):
-    return DISTRIBUTIONS.get(msg_class.__module__.split(".")[0], "[unknown]")
+    return VERSIONS.get(msg_class.__module__.split(".")[0], "[unknown]")

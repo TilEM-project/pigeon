@@ -5,6 +5,7 @@ from unittest import mock
 import os
 import logging
 from multiprocessing.queues import Queue
+from importlib.metadata import version
 
 
 def test_not_enough_args():
@@ -174,3 +175,7 @@ def test_setup_logging_levels(var, levels):
         utils.setup_logging("")
         for logger, level in levels.items():
             assert logging.getLogger(logger).level == level
+
+
+def test_get_version(mocker):
+    assert utils.get_version(utils.get_version) == version("pigeon-client")
