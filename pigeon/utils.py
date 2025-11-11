@@ -9,8 +9,6 @@ from logging_loki import LokiQueueHandler
 from multiprocessing import Queue
 from importlib.metadata import packages_distributions, version
 
-from .exceptions import SignatureException
-
 
 DISTRIBUTIONS = {
     module: packages[0] for module, packages in packages_distributions().items()
@@ -74,38 +72,6 @@ def set_log_levels(logger):
             logger.warning(
                 f"Cannot set logger '{name}' to level '{level}' as it is not defined."
             )
-
-
-def call_with_correct_args(func, *args, **kwargs):
-    args = copy(args)
-    kwargs = copy(kwargs)
-    params = inspect.signature(func).parameters
-
-    if True not in [
-        param.kind == inspect._ParameterKind.VAR_POSITIONAL for param in params.values()
-    ]:
-        num_args = len(
-            [
-                None
-                for param in params.values()
-                if param.default == param.empty and param.kind != param.VAR_KEYWORD
-            ]
-        )
-        if num_args > len(args):
-            raise SignatureException(
-                f"Function '{func}' requires {num_args} positional arguments, but only {len(args)} are available."
-            )
-        args = args[:num_args]
-
-    if True not in [
-        param.kind == inspect._ParameterKind.VAR_KEYWORD for param in params.values()
-    ]:
-        allowed_keys = [key for key, val in params.items() if val.default != val.empty]
-        for key in list(kwargs.keys()):
-            if key not in allowed_keys:
-                del kwargs[key]
-
-    return func(*args, **kwargs)
 
 
 def get_version(msg_class):
