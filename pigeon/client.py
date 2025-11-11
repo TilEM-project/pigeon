@@ -3,7 +3,7 @@ import os
 import socket
 import time
 from importlib.metadata import entry_points
-from typing import Callable, Dict
+from typing import Callable, Dict, Any
 
 import stomp
 import stomp.exception
@@ -12,7 +12,7 @@ from stomp.utils import Frame
 
 from . import messages
 from . import exceptions
-from .utils import call_with_correct_args, get_version
+from .utils import get_version
 from threading import Thread
 
 
@@ -74,7 +74,7 @@ class Pigeon:
         self._topic_versions = {}
         if load_topics:
             self._load_topics()
-        self._callbacks: Dict[str, Callable] = {}
+        self._callbacks: Dict[str, Dict[str, Any]] = {}
         self._connection.set_listener(
             "listener", PigeonListener(self._handle_message, self._handle_reconnect)
         )
@@ -146,15 +146,12 @@ class Pigeon:
 
         self._connected = True
 
-    def send(self, topic: str, timeout=..., **data):
+    def send(self, topic: str, **data):
         """
         Sends data to the specified topic.
 
         Args:
             topic (str): The topic to send the data to.
-            timeout (float, None): The length of time to attempt to send the
-                message, or None to try indefinitely. If set to ..., the default,
-                the send_timeout value from the client constructor will be used.
             **data: Keyword arguments representing the data to be sent.
 
         Raises:
@@ -162,7 +159,7 @@ class Pigeon:
             TimeoutError: If the message was not able to be sent within the required
                 timeframe.
         """
-        self._send(topic, data, timeout=timeout)
+        self._send(topic, data)
 
     def _send(self, topic, data, timeout=..., headers={}):
         """
@@ -223,12 +220,19 @@ class Pigeon:
     def _handle_reconnect(self):
         self._connected = False
         self._logger.warning("Disconnected from broker. Attempting to reconnect...")
-        old_subscriptions = dict(self._callbacks)
+        old_subscriptions = self._callbacks
         self._callbacks = {}
         time.sleep(1)
         self.connect()
-        for topic, callback in old_subscriptions.items():
-            self.subscribe(topic, callback)
+        for topic, callback_info in old_subscriptions.items():
+            callback = callback_info.get("callback")
+            assert callback is not None
+            self.subscribe(
+                topic,
+                callback,
+                callback_info.get("include_topic", False),
+                callback_info.get("include_headers", False),
+            )
 
     def _handle_message(self, message_frame: Frame):
         topic = message_frame.headers["subscription"]
@@ -245,42 +249,56 @@ class Pigeon:
                 f"Failed to deserialize message on topic '{topic}' due to error:\n{e}Installed message version is {self._topic_versions[topic]} and received message version is {version}"
             )
             return
-        callback = self._callbacks.get(topic)
-        if callback is None:
+        callback_info = self._callbacks.get(topic)
+        if callback_info is None or callback_info.get("callback") is None:
             self._logger.warning(
                 f"No callback for message received on topic '{topic}'."
             )
             return
         if not self._spawn_threads:
-            self._run_callback(callback, message_data, topic, message_frame.headers)
+            self._run_callback(
+                callback_info, message_data, topic, message_frame.headers
+            )
         else:
             Thread(
                 target=self._run_callback,
-                args=(callback, message_data, topic, message_frame.headers),
+                args=(callback_info, message_data, topic, message_frame.headers),
             ).start()
 
-    def _run_callback(self, callback, message_data, topic, headers):
+    def _run_callback(self, callback_info, message_data, topic, headers):
+        callback = callback_info.get("callback")
+        args = [message_data]
+        if callback_info.get("include_topic", False):
+            args.append(topic)
+        if callback_info.get("include_headers", False):
+            args.append(headers)
         try:
-            call_with_correct_args(callback, message_data, topic, headers)
-        except exceptions.SignatureException as e:
-            self._logger.warning(
-                f"Callback signature for topic '{topic}' not acceptable. Call failed with error:\n{e}"
-            )
+            callback(*args)
         except Exception as e:
             self._logger.warning(
                 f"Callback for topic '{topic}' failed with error:", exc_info=True
             )
 
-    def subscribe(self, topic: str, callback: Callable):
+    def subscribe(
+        self,
+        topic: str,
+        callback: Callable,
+        include_topic: bool = False,
+        include_headers: bool = False,
+    ):
         """
         Subscribes to a topic and associates a callback function to handle incoming messages.
 
         Args:
             topic (str): The topic to subscribe to.
             callback (Callable): The callback function to handle incoming
-                messages. It may accept up to three arguments. In order, the
-                arguments are, the received message, the topic the message was
-                received on, and the message headers.
+                messages. Depending on configuration, it may be provided up to
+                three arguments. In order, the arguments are, the received message,
+                the topic the message was received on, and the message headers.
+            include_topic (bool): If true, include recieved topic in the callback
+                function arguments.
+            include_headers (bool): If true, include message headers in the
+                callback function arguments.
 
         Raises:
             NoSuchTopicException: If the specified topic is not defined.
@@ -288,22 +306,36 @@ class Pigeon:
         self._ensure_topic_exists(topic)
         if topic not in self._callbacks:
             self._connection.subscribe(destination=topic, id=topic)
-        self._callbacks[topic] = callback
+        self._callbacks[topic] = {
+            "callback": callback,
+            "include_topic": include_topic,
+            "include_headers": include_headers,
+        }
         self._logger.info(f"Subscribed to {topic} with {callback}.")
 
-    def subscribe_all(self, callback: Callable):
+    def subscribe_all(
+        self,
+        callback: Callable,
+        include_topic: bool = True,
+        include_headers: bool = False,
+    ):
         """Subscribes to all registered topics.
 
         Args:
-            callback: The function to call when a message is received. It must
-                accept two arguments, the topic and the message data.
-            include_core (bool): If true, subscribe all will subscribe the client to core messages.
+            callback (Callable): The callback function to handle incoming
+                messages. Depending on configuration, it may be provided up to
+                three arguments. In order, the arguments are, the received message,
+                the topic the message was received on, and the message headers.
+            include_topic (bool): If true, include recieved topic in the callback
+                function arguments.
+            include_headers (bool): If true, include message headers in the
+                callback function arguments.
         """
 
         if len(self._topics) == 0:
             self._logger.warning("No topics registered!")
         for topic in self._topics:
-            self.subscribe(topic, callback)
+            self.subscribe(topic, callback, include_topic, include_headers)
 
     def unsubscribe(self, topic: str):
         """Unsubscribes from a given topic.
