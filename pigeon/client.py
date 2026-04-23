@@ -84,9 +84,18 @@ class Pigeon:
         self._hostname = socket.gethostname().split(".")[0]
         self._name = f"{self._service}_{self._pid}_{self._hostname}"
 
-    def _load_topics(self):
+    @staticmethod
+    def _get_topics():
         for entrypoint in entry_points(group="pigeon.msgs"):
-            self.register_topics(entrypoint.load())
+            for topic in entrypoint.load().items():
+                yield topic
+
+    @classmethod
+    def get_topics(cls):
+        return dict(cls._get_topics())
+
+    def _load_topics(self):
+        self.register_topics(self.get_topics())
 
     def register_topic(self, topic: str, msg_class: Callable):
         """Register message definition for a given topic.

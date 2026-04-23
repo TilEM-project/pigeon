@@ -1,15 +1,26 @@
+#!/usr/bin/env python
+# PYTHON_ARGCOMPLETE_OK
+
 from .client import Pigeon
+import argcomplete
 import argparse
 import yaml
 import json
 from os import environ
+from os.path import expanduser
 import jsonschema2md
 from rich.console import Console
 from rich.markdown import Markdown
 import re
 from datetime import datetime
 from pydantic import BaseModel
+from pydantic_core import PydanticUndefined
+from pydantic.fields import FieldInfo
 from time import time, sleep
+from types import UnionType
+from typing import GenericAlias, _GenericAlias, Literal, Union, get_origin
+from collections.abc import Mapping
+from datetime import datetime
 
 
 jsonschema2md.Parser.current_locale = "en_US"
@@ -95,7 +106,85 @@ class Listener:
             json.dump(self.messages, f)
 
 
-def main():
+class DataCompleter:
+    def __init__(self, topics):
+        self._topics = topics
+
+    def __call__(self, prefix=None, parsed_args=None, **kwargs):
+        assert parsed_args is not None
+        assert prefix is not None
+        return list(self.get_options(parsed_args.topic))
+
+    def get_options(self, topic):
+        yield self.get_data_structure(topic)
+        # for field in self.get_fields(topic):
+        #     yield field
+
+    def get_fields(self, topic):
+        model = self._topics[topic]
+        return model.model_fields.keys()
+
+    def get_data_structure(self, topic):
+        model = self._topics[topic]
+        return yaml.dump(self._get_data_structure(model)).strip()
+
+    def _get_data_structure(self, model):
+        return {
+            field: self._fill_value(spec) for field, spec in model.model_fields.items()
+        }
+
+    def _fill_value(self, spec, key=False):
+        if isinstance(spec, FieldInfo):
+            if spec.default is not PydanticUndefined:
+                return spec.default
+            spec = spec.annotation
+        while isinstance(spec, UnionType) or get_origin(spec) is Union:
+            spec = spec.__args__[0]
+        if isinstance(spec, (GenericAlias, _GenericAlias)):
+            if spec.__origin__ is list:
+                return [self._fill_value(spec.__args__[0])]
+            if spec.__origin__ is tuple:
+                return [self._fill_value(arg) for arg in spec.__args__]
+            if spec.__origin__ is Literal:
+                return spec.__args__[0]
+            if spec.__origin__ is Mapping or spec.__origin__ is dict:
+                return {
+                    self._fill_value(spec.__args__[0], True): self._fill_value(
+                        spec.__args__[1]
+                    )
+                }
+            return None
+        if issubclass(spec, BaseModel):
+            return self._get_data_structure(spec)
+        if spec is int:
+            return 0
+        if spec is bool:
+            return False
+        if spec is float:
+            return 0.0
+        if spec is str:
+            if key:
+                return "key"
+            else:
+                return ""
+        if spec is datetime:
+            return datetime.now()
+        if spec is tuple:
+            return [self._fill_value(arg) for arg in spec.__args__]
+        if spec is list:
+            return [self._fill_value(spec.__args__[0])]
+        if spec is dict:
+            return {
+                self._fill_value(spec.__args__[0], True): self._fill_value(
+                    spec.__args__[1]
+                )
+            }
+        return None
+
+
+def create_parser(use_aliases=True):
+    topics = Pigeon.get_topics()
+
     parser = argparse.ArgumentParser(prog="Pigeon CLI")
     parser.add_argument(
         "--host",
@@ -120,18 +209,33 @@ def main():
     subparsers = parser.add_subparsers(dest="command")
 
     publish = subparsers.add_parser(
-        "publish", aliases=["p", "pub", "send"], help="Publish a message."
+        "publish",
+        aliases=("p", "pub", "send") if use_aliases else (),
+        help="Publish a message.",
     )
-    publish.add_argument("topic", type=str, help="The topic to publish a message to.")
+    publish.add_argument(
+        "topic",
+        type=str,
+        help="The topic to publish a message to.",
+        metavar="topic",
+        choices=topics.keys(),
+    )
     publish.add_argument(
         "data", type=str, help="The YAML/JSON formatted data to publish."
-    )
+    ).completer = DataCompleter(topics)
 
     subscribe = subparsers.add_parser(
-        "subscribe", aliases=["s", "sub"], help="Subscribe to topics."
+        "subscribe",
+        aliases=("s", "sub") if use_aliases else (),
+        help="Subscribe to topics.",
     )
     subscribe.add_argument(
-        "topic", type=str, nargs="*", help="The topic to subscribe to."
+        "topic",
+        type=str,
+        nargs="*",
+        help="The topic to subscribe to.",
+        metavar="topic",
+        choices=topics.keys(),
     )
     subscribe.add_argument(
         "-a", "--all", action="store_true", help="Subscribe to all registered topics."
@@ -143,23 +247,41 @@ def main():
         "--headers", action="store_true", help="Display headers of received messages."
     )
 
-    list = subparsers.add_parser("list", aliases=["l"], help="List topics.")
-
-    show = subparsers.add_parser(
-        "show", aliases=["doc", "documentation"], help="Display message documentation."
-    )
-    show.add_argument(
-        "topic", type=str, nargs="*", help="The topic to display the documentation for."
+    list = subparsers.add_parser(
+        "list", aliases=("l",) if use_aliases else (), help="List topics."
     )
 
-    record = subparsers.add_parser("record", aliases=["r"], help="Record messages.")
+    doc = subparsers.add_parser(
+        "doc",
+        aliases=("show", "documentation") if use_aliases else (),
+        help="Display message documentation.",
+    )
+    doc.add_argument(
+        "topic",
+        type=str,
+        nargs="*",
+        help="The topic to display the documentation for.",
+        metavar="topic",
+        choices=topics.keys(),
+    )
+
+    record = subparsers.add_parser(
+        "record", aliases=("r", "rec") if use_aliases else (), help="Record messages."
+    )
     record.add_argument(
         "-o", "--output", type=str, help="The file to write the messages to."
     )
     record.add_argument(
         "-a", "--all", action="store_true", help="Subscribe to all registered topics."
     )
-    record.add_argument("topic", type=str, nargs="*", help="The topic to record.")
+    record.add_argument(
+        "topic",
+        type=str,
+        nargs="*",
+        help="The topic to record.",
+        metavar="topic",
+        choices=topics.keys(),
+    )
 
     play = subparsers.add_parser("play", help="Playback recorded messages.")
     play.add_argument(
@@ -178,15 +300,43 @@ def main():
     play.add_argument("file", type=str, help="The file to playback.")
 
     rate = subparsers.add_parser(
-        "rate", aliases=["hz"], help="Display the rate at which messages are received."
+        "rate",
+        aliases=("hz",) if use_aliases else (),
+        help="Display the rate at which messages are received.",
     )
     rate.add_argument("topic", type=str, help="The topic to use for rate calculations.")
 
     delay = subparsers.add_parser(
-        "delay", aliases=["d"], help="Display the latency of each received message."
+        "delay",
+        aliases=("d",) if use_aliases else (),
+        help="Display the latency of each received message.",
     )
-    delay.add_argument("topic", type=str, help="The topic to measure the latency of.")
+    delay.add_argument(
+        "topic",
+        type=str,
+        help="The topic to measure the latency of.",
+        metavar="topic",
+        choices=topics.keys(),
+    )
 
+    autocomplete = subparsers.add_parser(
+        "autocomplete", help="Register pigeon for tab autocompletion."
+    )
+    autocomplete.add_argument(
+        "file",
+        type=str,
+        nargs="?",
+        help="The file to add the pigeon autocompletion to, use - for stdout.",
+        default="~/.bashrc",
+    )
+
+    return parser
+
+
+def main():
+    parser = create_parser()
+
+    argcomplete.autocomplete(parser)
     args = parser.parse_args()
 
     if args.command is None:
@@ -216,6 +366,16 @@ def main():
                 markdown = "".join(parser.parse_schema(schema))
                 markdown = re.sub(r"<a.*?>(.*?)</a>", r"\1", markdown)
                 console.print(Markdown(markdown))
+            exit(0)
+        case "autocomplete":
+            eval_str = 'eval "$(register-python-argcomplete pigeon)"'
+            if args.file == "-":
+                print(eval_str)
+            else:
+                with open(expanduser(args.file), "a") as f:
+                    f.write(f"\n{eval_str}\n")
+                print(f"Autocompletion added to {args.file}")
+                print(f'Run "source {args.file}" to enable autocompletion')
             exit(0)
 
     connection.connect(
