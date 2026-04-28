@@ -121,7 +121,9 @@ def test_send_headers(pigeon_client):
     pigeon_client._connected = True
 
     with patch("pigeon.client.time.time_ns", lambda: 1e6):
-        pigeon_client._send("test", {"field1": "datas"}, headers={"test1": "this", "test2": "that"})
+        pigeon_client._send(
+            "test", {"field1": "datas"}, headers={"test1": "this", "test2": "that"}
+        )
 
     pigeon_client._connection.send.assert_called_with(
         destination="test",
@@ -137,7 +139,6 @@ def test_send_headers(pigeon_client):
             "test2": "that",
         },
     )
-
 
 
 @pytest.mark.parametrize(
@@ -180,10 +181,12 @@ def test_send_timeout(
         client._connection.send.side_effect = reason
     start = time.time()
     with pytest.raises(TimeoutError):
-        client.send("some_topic", timeout=method_timeout, field1="data")
+        client._send("some_topic", {"field1": "data"}, timeout=method_timeout)
     assert abs(time.time() - start - timeout) < 0.2
 
 
+@pytest.mark.parametrize("include_topic", [False, True])
+@pytest.mark.parametrize("include_headers", [False, True])
 @pytest.mark.parametrize(
     "topic, callback_name, expected_log",
     [
@@ -191,17 +194,25 @@ def test_send_timeout(
     ],
     ids=["subscribe-new-topic"],
 )
-def test_subscribe(pigeon_client, topic, callback_name, expected_log):
+def test_subscribe(
+    pigeon_client, topic, callback_name, expected_log, include_topic, include_headers
+):
     # Arrange
     pigeon_client._topics[topic] = MockMessage
     callback = MagicMock(__name__=callback_name)
     pigeon_client._connection.subscribe = MagicMock()
 
     # Act
-    pigeon_client.subscribe(topic, callback)
+    pigeon_client.subscribe(
+        topic, callback, include_topic=include_topic, include_headers=include_headers
+    )
 
     # Assert
-    assert pigeon_client._callbacks[topic] == callback
+    assert pigeon_client._callbacks[topic] == {
+        "callback": callback,
+        "include_topic": include_topic,
+        "include_headers": include_headers,
+    }
     pigeon_client._connection.subscribe.assert_called_with(destination=topic, id=topic)
     pigeon_client._logger.info.assert_called_with(expected_log.format(callback))
 
@@ -222,17 +233,25 @@ def test_subscribe_no_such_topic(pigeon_client, topic):
         pigeon_client.subscribe(topic, callback)
 
 
-def test_subscribe_all(pigeon_client, mocker):
+@pytest.mark.parametrize("include_topic", [False, True])
+@pytest.mark.parametrize("include_headers", [False, True])
+def test_subscribe_all(pigeon_client, mocker, include_topic, include_headers):
     pigeon_client._connection = mocker.MagicMock()
     pigeon_client.subscribe = mocker.MagicMock()
 
     callback = mocker.MagicMock()
 
-    pigeon_client.subscribe_all(callback)
+    pigeon_client.subscribe_all(
+        callback, include_topic=include_topic, include_headers=include_headers
+    )
 
     assert len(pigeon_client.subscribe.mock_calls) == 2
-    pigeon_client.subscribe.assert_any_call("topic1", callback)
-    pigeon_client.subscribe.assert_any_call("topic2", callback)
+    pigeon_client.subscribe.assert_any_call(
+        "topic1", callback, include_topic, include_headers
+    )
+    pigeon_client.subscribe.assert_any_call(
+        "topic2", callback, include_topic, include_headers
+    )
 
 
 def test_subscribe_all_no_topics(pigeon_client, mocker):
@@ -248,7 +267,20 @@ def test_subscribe_all_no_topics(pigeon_client, mocker):
     pigeon_client._logger.warning.assert_called_once()
 
 
-def test_handle_reconnect(pigeon_client, mocker):
+@pytest.mark.parametrize("include_topic_t2", [False, True])
+@pytest.mark.parametrize("include_headers_t2", [False, True])
+@pytest.mark.parametrize("include_topic_t3", [False, True])
+@pytest.mark.parametrize("include_headers_t3", [False, True])
+def test_handle_reconnect(
+    pigeon_client,
+    mocker,
+    include_topic_t2,
+    include_headers_t2,
+    include_topic_t3,
+    include_headers_t3,
+):
+    mocker.patch("pigeon.client.time.sleep")
+
     pigeon_client._connected = True
 
     pigeon_client.register_topic("topic3", MockMessage)
@@ -260,8 +292,18 @@ def test_handle_reconnect(pigeon_client, mocker):
     pigeon_client.connect = mocker.MagicMock()
     pigeon_client._connection = mocker.MagicMock()
 
-    pigeon_client.subscribe("topic2", topic2_cb)
-    pigeon_client.subscribe("topic3", topic3_cb)
+    pigeon_client.subscribe(
+        "topic2",
+        topic2_cb,
+        include_topic=include_topic_t2,
+        include_headers=include_headers_t2,
+    )
+    pigeon_client.subscribe(
+        "topic3",
+        topic3_cb,
+        include_topic=include_topic_t3,
+        include_headers=include_headers_t3,
+    )
 
     pigeon_client.subscribe = mocker.MagicMock()
 
@@ -272,8 +314,12 @@ def test_handle_reconnect(pigeon_client, mocker):
     assert len(pigeon_client.subscribe.mock_calls) == 2
 
     pigeon_client.connect.assert_called_once_with()
-    pigeon_client.subscribe.assert_any_call("topic2", topic2_cb)
-    pigeon_client.subscribe.assert_any_call("topic3", topic3_cb)
+    pigeon_client.subscribe.assert_any_call(
+        "topic2", topic2_cb, include_topic_t2, include_headers_t2
+    )
+    pigeon_client.subscribe.assert_any_call(
+        "topic3", topic3_cb, include_topic_t3, include_headers_t3
+    )
     pigeon_client._logger.warning.assert_called_once_with(
         "Disconnected from broker. Attempting to reconnect..."
     )

@@ -18,7 +18,9 @@ def pigeon_client():
             yield client
 
 
-def test_one_arg(pigeon_client):
+@pytest.mark.parametrize("include_topic", [False, True])
+@pytest.mark.parametrize("include_headers", [False, True])
+def test_message_handler(pigeon_client, include_topic, include_headers):
     mock_stomp_message = MagicMock()
     mock_stomp_message.headers = {
         "subscription": "test.msg",
@@ -26,78 +28,28 @@ def test_one_arg(pigeon_client):
 
     mock_message = MagicMock()
 
-    def callback(msg):
+    def callback(msg, *args):
         mock_message.deserialize.assert_called_with(mock_stomp_message.body)
         assert msg == mock_message.deserialize()
+        args = list(args)
+        if include_topic:
+            topic = args.pop(0)
+            assert topic == "test.msg"
+        if include_headers:
+            headers = args.pop(0)
+            assert headers == mock_stomp_message.headers
 
     pigeon_client._connection = MagicMock()
     pigeon_client.register_topic("test.msg", mock_message)
-    pigeon_client.subscribe("test.msg", callback)
+    pigeon_client.subscribe(
+        "test.msg",
+        callback,
+        include_topic=include_topic,
+        include_headers=include_headers,
+    )
 
     pigeon_client._handle_message(mock_stomp_message)
-
-
-def test_two_args(pigeon_client):
-    mock_stomp_message = MagicMock()
-    mock_stomp_message.headers = {
-        "subscription": "test.msg",
-    }
-
-    mock_message = MagicMock()
-
-    def callback(msg, topic):
-        mock_message.deserialize.assert_called_with(mock_stomp_message.body)
-        assert msg == mock_message.deserialize()
-        assert topic == "test.msg"
-
-    pigeon_client._connection = MagicMock()
-    pigeon_client.register_topic("test.msg", mock_message)
-    pigeon_client.subscribe("test.msg", callback)
-
-    pigeon_client._handle_message(mock_stomp_message)
-
-
-def test_three_args(pigeon_client):
-    mock_stomp_message = MagicMock()
-    mock_stomp_message.headers = {
-        "subscription": "test.msg",
-    }
-
-    mock_message = MagicMock()
-
-    def callback(msg, topic, headers):
-        mock_message.deserialize.assert_called_with(mock_stomp_message.body)
-        assert msg == mock_message.deserialize()
-        assert topic == "test.msg"
-        assert headers == mock_stomp_message.headers
-
-    pigeon_client._connection = MagicMock()
-    pigeon_client.register_topic("test.msg", mock_message)
-    pigeon_client.subscribe("test.msg", callback)
-
-    pigeon_client._handle_message(mock_stomp_message)
-
-
-def test_var_args(pigeon_client):
-    mock_stomp_message = MagicMock()
-    mock_stomp_message.headers = {
-        "subscription": "test.msg",
-    }
-
-    mock_message = MagicMock()
-
-    def callback(*args):
-        mock_message.deserialize.assert_called_with(mock_stomp_message.body)
-        assert len(args) == 3
-        assert args[0] == mock_message.deserialize()
-        assert args[1] == "test.msg"
-        assert args[2] == mock_stomp_message.headers
-
-    pigeon_client._connection = MagicMock()
-    pigeon_client.register_topic("test.msg", mock_message)
-    pigeon_client.subscribe("test.msg", callback)
-
-    pigeon_client._handle_message(mock_stomp_message)
+    pigeon_client._logger.warning.assert_not_called()
 
 
 def create_mock_message(body="", **headers):
@@ -137,19 +89,6 @@ def test_no_callback(pigeon_client):
 
     pigeon_client._logger.warning.assert_called_with(
         "No callback for message received on topic 'test'."
-    )
-
-
-def test_bad_signature(pigeon_client):
-    mock_message = create_mock_message(subscription="test")
-    callback = lambda a, b, c, d: None
-
-    pigeon_client.register_topic("test", MagicMock())
-    pigeon_client.subscribe("test", callback)
-    pigeon_client._handle_message(mock_message)
-
-    pigeon_client._logger.warning.assert_called_with(
-        f"Callback signature for topic 'test' not acceptable. Call failed with error:\nFunction '{callback}' requires 4 positional arguments, but only 3 are available."
     )
 
 
