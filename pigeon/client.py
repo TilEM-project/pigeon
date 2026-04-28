@@ -45,6 +45,7 @@ class Pigeon:
         spawn_threads: bool = False,
         connection_timeout: float = 10,
         send_timeout: float = 0,
+        ssl: bool = False,
     ):
         """
         Args:
@@ -60,11 +61,13 @@ class Pigeon:
                 Set to None to attempt to connect indefinitely.
             send_timeout: The number of seconds to attempt to send a message, or None to
                 try indefinitely.
-
+            ssl: Use SSL for connection.
         """
         self._service = service
         self._spawn_threads = spawn_threads
         self._connection = stomp.Connection12([(host, port)], heartbeats=(10000, 10000))
+        if ssl:
+            self._connection.set_ssl([(host, port)])
         self._connected = False
         self._connection_timeout = connection_timeout
         self._send_timeout = send_timeout

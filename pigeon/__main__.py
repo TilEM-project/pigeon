@@ -117,6 +117,11 @@ def main():
         type=str,
         help="The password to use when connecting to the STOMP server. The environment variable PIGEON_PASSWORD is used if set.",
     )
+    parser.add_argument(
+        "--ssl",
+        action="store_true",
+        help="Use SSL.",
+    )
     subparsers = parser.add_subparsers(dest="command")
 
     publish = subparsers.add_parser(
@@ -197,6 +202,7 @@ def main():
         "CLI",
         environ.get("PIGEON_HOST", "127.0.0.1") if args.host is None else args.host,
         environ.get("PIGEON_PORT", 61616) if args.port is None else args.port,
+        ssl=args.ssl,
     )
 
     match args.command:
