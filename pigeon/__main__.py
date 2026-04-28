@@ -10,6 +10,7 @@ import re
 from datetime import datetime
 from pydantic import BaseModel
 from time import time, sleep
+import logging
 
 
 jsonschema2md.Parser.current_locale = "en_US"
@@ -122,6 +123,17 @@ def main():
         action="store_true",
         help="Use SSL.",
     )
+    parser.add_argument(
+        "--prefix",
+        type=str,
+        default="",
+        help="The prefix to include at the beginning of each topic."
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Print debug messages."
+    )
     subparsers = parser.add_subparsers(dest="command")
 
     publish = subparsers.add_parser(
@@ -194,6 +206,9 @@ def main():
 
     args = parser.parse_args()
 
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
+
     if args.command is None:
         console.print("No subcommand specified!", style="red")
         exit(1)
@@ -203,6 +218,7 @@ def main():
         environ.get("PIGEON_HOST", "127.0.0.1") if args.host is None else args.host,
         environ.get("PIGEON_PORT", 61616) if args.port is None else args.port,
         ssl=args.ssl,
+        topic_prefix=args.prefix,
     )
 
     match args.command:
