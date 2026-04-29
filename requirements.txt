@@ -4,3 +4,4 @@ pyyaml
 python-logging-loki
 jsonschema2md
 rich
+argcomplete
