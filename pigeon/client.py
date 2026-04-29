@@ -46,6 +46,7 @@ class Pigeon:
         connection_timeout: float = 10,
         send_timeout: float = 0,
         ssl: bool = False,
+        topic_prefix: str = "",
     ):
         """
         Args:
@@ -62,6 +63,7 @@ class Pigeon:
             send_timeout: The number of seconds to attempt to send a message, or None to
                 try indefinitely.
             ssl: Use SSL for connection.
+            topic_prefix: A prefix to use on for topics.
         """
         self._service = service
         self._spawn_threads = spawn_threads
@@ -75,6 +77,9 @@ class Pigeon:
         self._password = None
         self._topics = {}
         self._topic_versions = {}
+        self._topic_prefix = topic_prefix
+        if len(topic_prefix) and not topic_prefix[-1] in "./":
+            self._topic_prefix += "."
         if load_topics:
             self._load_topics()
         self._callbacks: Dict[str, Callable] = {}
@@ -212,7 +217,7 @@ class Pigeon:
             if self._connected:
                 try:
                     self._connection.send(
-                        destination=topic, body=message.serialize(), headers=_headers
+                        destination=self._topic_prefix + topic, body=message.serialize(), headers=_headers
                     )
                     self._logger.debug(f"Sent data to {topic}: {message}")
                     return
@@ -244,6 +249,13 @@ class Pigeon:
 
     def _handle_message(self, message_frame: Frame):
         topic = message_frame.headers["subscription"]
+        if topic.startswith(self._topic_prefix):
+            topic = topic[len(self._topic_prefix):]
+        else:
+            self._logger.warning(
+                f"Received a message on topic '{topic}' without the required prefix '{self._topic_prefix}'"
+            )
+            return
         if topic not in self._topics:
             self._logger.warning(
                 f"Received a message on an unregistered topic: {topic}"
@@ -299,7 +311,7 @@ class Pigeon:
         """
         self._ensure_topic_exists(topic)
         if topic not in self._callbacks:
-            self._connection.subscribe(destination=topic, id=topic)
+            self._connection.subscribe(destination=self._topic_prefix + topic, id=topic)
         self._callbacks[topic] = callback
         self._logger.info(f"Subscribed to {topic} with {callback}.")
 
