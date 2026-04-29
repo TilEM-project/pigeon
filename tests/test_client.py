@@ -88,7 +88,8 @@ def test_connect_failure(pigeon_client, username, password):
     ],
     ids=["send-data"],
 )
-def test_send(pigeon_client, topic, data, expected_serialized_data):
+@pytest.mark.parametrize("prefix", ["", "instrument1.", "instrument2/"])
+def test_send(pigeon_client, topic, data, expected_serialized_data, prefix):
     expected_headers = {
         "source": pigeon_client._name,
         "service": "test",
@@ -102,13 +103,16 @@ def test_send(pigeon_client, topic, data, expected_serialized_data):
         pigeon_client._topics[topic] = MockMessage
         pigeon_client._connection.send = MagicMock()
         pigeon_client._connected = True
+        pigeon_client._topic_prefix = prefix
 
         # Act
         pigeon_client.send(topic, **data)
 
         # Assert
         pigeon_client._connection.send.assert_called_with(
-            destination=topic, body=expected_serialized_data, headers=expected_headers
+            destination=prefix + topic,
+            body=expected_serialized_data,
+            headers=expected_headers,
         )
         pigeon_client._logger.debug.assert_called_with(
             f"Sent data to {topic}: {MockMessage(**data)}"
@@ -191,9 +195,11 @@ def test_send_timeout(
     ],
     ids=["subscribe-new-topic"],
 )
-def test_subscribe(pigeon_client, topic, callback_name, expected_log):
+@pytest.mark.parametrize("prefix", ["", "instrument1.", "instrument2/"])
+def test_subscribe(pigeon_client, topic, callback_name, expected_log, prefix):
     # Arrange
     pigeon_client._topics[topic] = MockMessage
+    pigeon_client._topic_prefix = prefix
     callback = MagicMock(__name__=callback_name)
     pigeon_client._connection.subscribe = MagicMock()
 
@@ -202,7 +208,9 @@ def test_subscribe(pigeon_client, topic, callback_name, expected_log):
 
     # Assert
     assert pigeon_client._callbacks[topic] == callback
-    pigeon_client._connection.subscribe.assert_called_with(destination=topic, id=topic)
+    pigeon_client._connection.subscribe.assert_called_with(
+        destination=prefix + topic, id=topic
+    )
     pigeon_client._logger.info.assert_called_with(expected_log.format(callback))
 
 
@@ -311,3 +319,24 @@ def test_disconnect(pigeon_client):
     # Assert
     pigeon_client._connection.disconnect.assert_called_once()
     pigeon_client._logger.info.assert_called_with("Disconnected from STOMP server.")
+
+
+@pytest.mark.parametrize(
+    "prefix, full_prefix",
+    [
+        ("", ""),
+        ("instrument1", "instrument1."),
+        ("instrument2.", "instrument2."),
+        ("instrument3/", "instrument3/"),
+    ],
+)
+def test_prefix(prefix, full_prefix):
+    client = Pigeon(
+        "test",
+        host="localhost",
+        port=61613,
+        load_topics=False,
+        connection_timeout=0.5,
+        topic_prefix=prefix,
+    )
+    assert client._topic_prefix == full_prefix
