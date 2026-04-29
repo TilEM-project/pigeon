@@ -216,13 +216,9 @@ def create_parser(use_aliases=True):
         "--prefix",
         type=str,
         default="",
-        help="The prefix to include at the beginning of each topic."
+        help="The prefix to include at the beginning of each topic.",
     )
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Print debug messages."
-    )
+    parser.add_argument("--debug", action="store_true", help="Print debug messages.")
     subparsers = parser.add_subparsers(dest="command")
 
     publish = subparsers.add_parser(

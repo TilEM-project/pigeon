@@ -125,7 +125,9 @@ def test_send_headers(pigeon_client):
     pigeon_client._connected = True
 
     with patch("pigeon.client.time.time_ns", lambda: 1e6):
-        pigeon_client._send("test", {"field1": "datas"}, headers={"test1": "this", "test2": "that"})
+        pigeon_client._send(
+            "test", {"field1": "datas"}, headers={"test1": "this", "test2": "that"}
+        )
 
     pigeon_client._connection.send.assert_called_with(
         destination="test",
@@ -141,7 +143,6 @@ def test_send_headers(pigeon_client):
             "test2": "that",
         },
     )
-
 
 
 @pytest.mark.parametrize(

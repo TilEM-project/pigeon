@@ -13,7 +13,8 @@ from .exceptions import SignatureException
 
 
 VERSIONS = {
-    module: version(packages[0]) for module, packages in packages_distributions().items()
+    module: version(packages[0])
+    for module, packages in packages_distributions().items()
 }
 
 

@@ -217,7 +217,9 @@ class Pigeon:
             if self._connected:
                 try:
                     self._connection.send(
-                        destination=self._topic_prefix + topic, body=message.serialize(), headers=_headers
+                        destination=self._topic_prefix + topic,
+                        body=message.serialize(),
+                        headers=_headers,
                     )
                     self._logger.debug(f"Sent data to {topic}: {message}")
                     return
@@ -250,7 +252,7 @@ class Pigeon:
     def _handle_message(self, message_frame: Frame):
         topic = message_frame.headers["subscription"]
         if topic.startswith(self._topic_prefix):
-            topic = topic[len(self._topic_prefix):]
+            topic = topic[len(self._topic_prefix) :]
         else:
             self._logger.warning(
                 f"Received a message on topic '{topic}' without the required prefix '{self._topic_prefix}'"
