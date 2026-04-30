@@ -250,7 +250,7 @@ class Pigeon:
             self.subscribe(topic, callback)
 
     def _handle_message(self, message_frame: Frame):
-        topic = message_frame.headers["subscription"]
+        topic = message_frame.headers["destination"]
         if topic.startswith(self._topic_prefix):
             topic = topic[len(self._topic_prefix) :]
         else:
