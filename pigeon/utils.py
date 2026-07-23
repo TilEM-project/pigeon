@@ -1,16 +1,14 @@
-import logging
-from logging import _nameToLevel
 import inspect
-from copy import copy
-import hashlib
-from typing import Callable
+import logging
 import os
-from logging_loki import LokiQueueHandler
-from multiprocessing import Queue
+from copy import copy
 from importlib.metadata import packages_distributions, version
+from logging.handlers import RotatingFileHandler
+from multiprocessing import Queue
+
+from logging_loki import LokiQueueHandler
 
 from .exceptions import SignatureException
-
 
 VERSIONS = {
     module: version(packages[0])
@@ -18,18 +16,41 @@ VERSIONS = {
 }
 
 
-def setup_logging(logger_name: str = None, log_level: int = logging.INFO):
+def setup_logging(
+    logger_name: str = None,
+    log_level="INFO",
+    log_levels: dict = None,
+    log_file: str = None,
+    log_file_max_bytes: int = 10_000_000,
+    log_file_backups: int = 5,
+):
     logger = logging.root if logger_name is None else logging.getLogger(logger_name)
-    logger.setLevel(log_level)
+
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+        handler.close()
+
+    logger.setLevel(log_level.upper() if isinstance(log_level, str) else log_level)
+    fmt = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
     stream_handler = logging.StreamHandler()
-    stream_formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    stream_handler.setFormatter(stream_formatter)
+    stream_handler.setFormatter(fmt)
     logger.addHandler(stream_handler)
 
+    if log_file:
+        fh = RotatingFileHandler(
+            log_file, maxBytes=log_file_max_bytes, backupCount=log_file_backups
+        )
+        fh.setFormatter(fmt)
+        logger.addHandler(fh)
+
     setup_loki(logger)
-    set_log_levels(logger)
+
+    # Apply env LOG_LEVEL first (fallback), then explicit log_levels so that
+    # explicit configuration wins on any per-logger conflict.
+    set_log_levels(logger)  # legacy env fallback (deprecated)
+    for name, level in (log_levels or {}).items():
+        _set_level(name, level, logger)
 
     return logger
 
@@ -61,6 +82,16 @@ def setup_loki(logger):
     logger.addHandler(loki_handler)
 
 
+def _set_level(name, level, warn_logger):
+    resolved = logging.getLevelName(str(level).upper())
+    if not isinstance(resolved, int):
+        warn_logger.warning(
+            f"Cannot set logger '{name}' to level '{level}' as it is not defined."
+        )
+        return
+    logging.getLogger(name).setLevel(resolved)
+
+
 def set_log_levels(logger):
     if "LOG_LEVEL" not in os.environ:
         return
@@ -69,12 +100,7 @@ def set_log_levels(logger):
         for level in os.environ.get("LOG_LEVEL").split(",")
     ]
     for name, level in levels:
-        try:
-            logging.getLogger(name).setLevel(_nameToLevel[level])
-        except KeyError:
-            logger.warning(
-                f"Cannot set logger '{name}' to level '{level}' as it is not defined."
-            )
+        _set_level(name, level, logger)
 
 
 def call_with_correct_args(func, *args, **kwargs):

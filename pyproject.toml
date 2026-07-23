@@ -20,10 +20,10 @@ dynamic = ["dependencies"]
 pigeon = "pigeon.__main__:main"
 
 [project.urls]
-Homepage = "https://github.com/AllenInstitute/pigeon"
+Homepage = "https://github.com/TilEM-project/pigeon"
 Documentation = "http://pigeon.readthedocs.io/"
-Repository = "https://github.com/AllenInstitute/pigeon"
-Issues = "https://github.com/AllenInstitute/pigeon/issues"
+Repository = "https://github.com/TilEM-project/pigeon"
+Issues = "https://github.com/TilEM-project/pigeon/issues"
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
