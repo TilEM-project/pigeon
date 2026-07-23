@@ -83,8 +83,8 @@ def setup_loki(logger):
 
 
 def _set_level(name, level, warn_logger):
-    resolved = logging.getLevelNamesMapping().get(str(level).upper())
-    if resolved is None:
+    resolved = logging.getLevelName(str(level).upper())
+    if not isinstance(resolved, int):
         warn_logger.warning(
             f"Cannot set logger '{name}' to level '{level}' as it is not defined."
         )
