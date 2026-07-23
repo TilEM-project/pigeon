@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from stomp.exception import ConnectFailedException
+from stomp.exception import ConnectFailedException, NotConnectedException
 from pigeon.client import Pigeon
 from pigeon.exceptions import NoSuchTopicException
 from pigeon import BaseMessage
@@ -164,7 +164,9 @@ def test_send_no_such_topic(pigeon_client, topic, data):
     "class_timeout, method_timeout, timeout",
     [(0, ..., 0), (0.5, ..., 0.5), (0, 0.3, 0.3), (None, 0.7, 0.7)],
 )
-@pytest.mark.parametrize("reason", ["connected", OSError, ConnectFailedException])
+@pytest.mark.parametrize(
+    "reason", ["connected", OSError, ConnectFailedException, NotConnectedException]
+)
 def test_send_timeout(
     mocker, pigeon_client, class_timeout, method_timeout, timeout, reason
 ):

@@ -223,7 +223,7 @@ class Pigeon:
                     )
                     self._logger.debug(f"Sent data to {topic}: {message}")
                     return
-                except (OSError, stomp.exception.ConnectFailedException) as e:
+                except (OSError, stomp.exception.StompException) as e:
                     error = e
             if _timeout is not None and time.time() - start >= _timeout:
                 exception = TimeoutError(
