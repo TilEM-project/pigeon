@@ -60,3 +60,7 @@ class PigeonScript(Pigeon):
             )
 
         return message
+
+
+class PigeonNotebook(PigeonScript):
+    pass
